@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 10 COMPLETE
+## Status: Phase 11 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -18,8 +18,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 8 | Editing + git checkpoints + repo memory | ✅ complete |
 | 9 | Verification ladder + sandbox | ✅ complete |
 | 10 | Agent loop | ✅ complete |
-| 11 | Difficulty estimator + cascade router | ⬜ next |
-| 12 | Competence learner (bandit) | ⬜ |
+| 11 | Difficulty estimator + cascade router | ✅ complete |
+| 12 | Competence learner (bandit) | ⬜ next |
 | 13 | Assignment solver + diverse council | ⬜ |
 | 14 | Best-of-N + strong verifier-selector | ⬜ |
 | 15 | Security & privacy hardening | ⬜ |
@@ -30,6 +30,26 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 11 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Tiny heuristic -> difficulty d + task type; cached | `difficultyEstimator.test.ts` (mechanical→L0, design→L3; identity-cached) | ✅ |
+| Difficulty drift logged when realised tier ≠ predicted | `difficultyEstimator.test.ts` (observe→`difficulty_drift`; match→no log) | ✅ |
+| Signals (breadth / scope / weak localization) raise difficulty | `difficultyEstimator.test.ts` (narrow<broad; placed<unplaced) | ✅ |
+| Cascade L0..L3 per role; IMPLEMENT floors at a strong coder (L2), L3 at high d | `cascade.test.ts` (implement≥L2; mechanical=L0; plan/review=bucket) | ✅ |
+| Only mechanical edits use the cheap tier | `cascade.test.ts` (mechanical startTier=L0 regardless of d) | ✅ |
+| Escalate ONLY on ladder-fail / confidence<τ / regression (verifier-triggered) | `cascade.test.ts` (`shouldEscalate`); no speculative climb on clean pass | ✅ |
+| Router orders cheapest tier at/above floor, then role fit, then pricedCost | `cascadeRouter.test.ts` (implement picks L2 free over paid mini) | ✅ |
+| COST MODE + hard cap gate candidates (free-only drops paid; cap blocks paid) | `cascadeRouter.test.ts` (free-only / best-quality+capReached) | ✅ |
+| Authoring roles require `code`; below-floor pick flagged (confidence lowered) | `cascadeRouter.test.ts` (reasoner-x excluded from implement; below-floor flag) | ✅ |
+| Verifier-triggered escalation climbs a tier; caps at L3 with handoff flag | `cascadeRouter.test.ts` (escalate L2→L3; L3→top-tier flag) | ✅ |
+| Wired to real services (registry pool / pricedCost / policy / budget cap) | `RouterService` (keyed pool, pricedCost scalar, live CostPolicy + cap) | ✅ |
+| Agent handoff names the routed implement tier | `AgentService.planner` routes 'implement' with localize signals | ✅ |
+| Host activates + estimateDifficulty command registered | integration 11/11 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 259/259 |
+| `.vsix` packages | `npm run package` (585 KB, 15 files) | ✅ |
 
 ## Phase 10 — acceptance gate (all met)
 

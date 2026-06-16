@@ -126,6 +126,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.agent.runAgentCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.estimateDifficulty',
+        guard(async () => {
+          await services?.router.estimateDifficultyCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

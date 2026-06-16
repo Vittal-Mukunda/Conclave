@@ -33,6 +33,7 @@ import { CodeIntelService } from '../codeintel/CodeIntelService';
 import { RepoMemory } from '../editing/RepoMemory';
 import { EditService } from '../editing/EditService';
 import { VerifyService } from '../verify/VerifyService';
+import { RouterService } from '../router/RouterService';
 import { AgentService } from '../agent/AgentService';
 
 /**
@@ -53,6 +54,7 @@ export class Services implements vscode.Disposable {
   readonly codeIntel: CodeIntelService;
   readonly editing: EditService;
   readonly verify: VerifyService;
+  readonly router: RouterService;
   readonly agent: AgentService;
   readonly repoMemory?: RepoMemory;
   readonly scheduler: Scheduler;
@@ -195,9 +197,14 @@ export class Services implements vscode.Disposable {
     // Verification ladder + sandbox (Phase 9). Marks Sandbox degraded (process,
     // not container). Reuses the remembered test command (VER-6) from repo memory.
     this.verify = new VerifyService(this.degraded, this.logger, this.repoMemory);
+    // Difficulty estimator + cascade router (Phase 11): picks the cheapest tier
+    // the role/difficulty allow over the keyed pool, priced by pricedCost and
+    // gated by the live cost policy. A COST lever — climbs only on failure.
+    this.router = new RouterService(this.logger, registry, this.keys, this.pricedCost, this.policy, this.budget);
     // Agent loop (Phase 10): control FSM wiring localize -> edit -> verify with
-    // checkpoint/rollback + budget guards. Codegen brain deferred to later phases.
-    this.agent = new AgentService(this.logger, this.codeIntel, this.editing, this.verify, this.budget);
+    // checkpoint/rollback + budget guards. The router (Phase 11) names the tier
+    // for the implement stage. Codegen brain deferred to later phases.
+    this.agent = new AgentService(this.logger, this.codeIntel, this.editing, this.verify, this.budget, this.router);
 
     // Live capacity probing: startup pass + hourly, only for keyed providers.
     if (capability) {

@@ -396,6 +396,50 @@ run can only ever leave the tree better or unchanged — never worse.
 Catalog handled: LOOP-1, LOOP-2, LOOP-3, LOOP-4, LOOP-5, LOOP-6, LOOP-7, LOOP-9
 (LOOP-8 context compaction is a Phase 19 concern).
 
+## Phase 11 — Difficulty estimator + cascade router
+
+The OR brain's first selection layer (operations-research-design.md §4). A **cost
+lever, not a quality lever** (build-plan §5): pick the cheapest tier the role and
+difficulty allow over the keyed pool, and climb only on a concrete verifier
+failure. All routing logic is `vscode`/LLM-free and unit-tested; `RouterService`
+is the thin glue that builds the pool and prices it.
+
+- **types** (`src/router/types.ts`): `Role` (plan/implement/review/mechanical),
+  `Tier` L0..L3 (used both as a difficulty bucket and a model class), `TaskType`,
+  `Estimate`, `RouterModel`, `RoutedCandidate`, and `levelFromD` (even quarters).
+- **DifficultyEstimator** (`src/router/DifficultyEstimator.ts`): the "tiny model" —
+  a deterministic keyword + signal heuristic mapping a goal -> difficulty `d` +
+  task type. Mechanical (rename/format) scores ~0.1; refactor/design with
+  concurrency/architecture signals scores ~0.7-0.8. Breadth language, wide
+  `scopeFiles` and low `localizeConfidence` raise it. **Cached** per (goal,
+  signals); `observe()` folds the realised outcome back and **logs drift** when
+  the cascade actually climbed above/below the predicted level — the training
+  signal the Phase 12 bandit consumes.
+- **Cascade** (`src/router/Cascade.ts`): per-role ladder. `startTier` encodes the
+  two role rules — **IMPLEMENT** (convergent single authorship) never starts below
+  L2 and reaches L3 only at high `d`; **MECHANICAL** edits always start at L0;
+  plan/review enter at the difficulty bucket. `next()` climbs one rung (caps L3).
+  `shouldEscalate()` is **verifier-triggered**: climb only on a ladder failure, a
+  regression, or confidence below `tau` — never speculatively.
+- **CascadeRouter** (`src/router/CascadeRouter.ts`): ties estimator + cascade +
+  `CostPolicy` over a candidate pool. `classifyTier` buckets a model by kind /
+  price / id (free small -> L0, free 70b -> L1, free reasoner & cheap paid -> L2,
+  frontier paid -> L3). `route()` filters by cost mode + spend cap and the role's
+  required capability (authoring roles require `code`), then orders candidates:
+  cheapest tier at/above the floor first (ties by role fit then `pricedCost`),
+  with below-floor models as a flagged fallback (lowers confidence). `escalate()`
+  re-routes one tier up; at L3 it returns a "top tier" flag so the loop hands off
+  instead of spinning.
+- **RouterService** (`src/router/RouterService.ts`): vscode glue. Builds the pool
+  from keyed/available providers, scores each with `pricedCost` (real $ +
+  shadow-priced scarcity), gates with the live `CostPolicy` + `BudgetManager` cap.
+  `AgentService` calls it so the agent handoff names the implement-stage tier;
+  command `conclave.estimateDifficulty` shows difficulty + the routed pick.
+
+No new edge-case-catalog IDs are scoped here (the catalog has no ROUTE group);
+the cost-mode/cap gating reuses COST-3's hard stop, and verifier-triggered
+escalation is the planned remedy path for PROV-11 (cut-off -> escalate).
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

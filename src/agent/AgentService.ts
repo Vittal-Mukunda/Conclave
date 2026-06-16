@@ -4,6 +4,7 @@ import { CodeIntelService } from '../codeintel/CodeIntelService';
 import { EditService } from '../editing/EditService';
 import { VerifyService } from '../verify/VerifyService';
 import { BudgetManager } from '../cost/BudgetManager';
+import { RouterService } from '../router/RouterService';
 import { CheckpointRef } from '../editing/types';
 import { AgentLoop } from './AgentLoop';
 import { AgentTask, BudgetGate, Checkpointer, PlanDecision, Planner, Verifier } from './types';
@@ -24,6 +25,7 @@ export class AgentService {
     private readonly editing: EditService,
     private readonly verify: VerifyService,
     private readonly budget?: BudgetManager,
+    private readonly router?: RouterService,
   ) {}
 
   private planner(): Planner {
@@ -35,10 +37,23 @@ export class AgentService {
         }
         const top = loc.candidates[0];
         const where = top ? `${top.file}:${top.startLine}-${top.endLine}` : 'the workspace';
+        // Route the (eventual) implement stage so the difficulty estimate + tier
+        // pick are wired and visible — even though codegen authoring lands later.
+        let routed = '';
+        if (this.router) {
+          const r = await this.router.route('implement', task.goal, {
+            scopeFiles: loc.candidates.length,
+            localizeConfidence: loc.confidence,
+          });
+          const pick = r.chosen
+            ? `${r.chosen.model.providerId}/${r.chosen.model.modelId} (${r.chosen.tier})`
+            : 'no keyed model';
+          routed = `; difficulty ${r.estimate.d.toFixed(2)} (${r.estimate.level}) → ${pick}`;
+        }
         // No codegen engine yet — hand off honestly rather than fabricate edits.
         return {
           kind: 'handoff',
-          reason: `located ${where} (confidence ${loc.confidence.toFixed(2)}), but automated code generation arrives in a later phase`,
+          reason: `located ${where} (confidence ${loc.confidence.toFixed(2)})${routed}, but automated code generation arrives in a later phase`,
         };
       },
     };

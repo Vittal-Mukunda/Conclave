@@ -64,4 +64,12 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.runAgent'), 'runAgent not registered');
   });
+
+  it('registers the Phase 11 difficulty command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(
+      commands.includes('conclave.estimateDifficulty'),
+      'estimateDifficulty not registered',
+    );
+  });
 });

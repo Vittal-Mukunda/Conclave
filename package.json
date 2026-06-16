@@ -82,6 +82,10 @@
       {
         "command": "conclave.runAgent",
         "title": "conclave: Run Agent"
+      },
+      {
+        "command": "conclave.estimateDifficulty",
+        "title": "conclave: Estimate Task Difficulty"
       }
     ],
     "keybindings": [
