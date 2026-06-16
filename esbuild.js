@@ -13,7 +13,9 @@ const options = {
   platform: 'node',
   target: 'node18',
   outfile: 'out/extension.js',
-  external: ['vscode'],
+  // vscode is provided by the host; node-sqlite3-wasm is a runtime module that
+  // loads a .wasm file and must not be bundled (required from node_modules).
+  external: ['vscode', 'node-sqlite3-wasm'],
   sourcemap: true,
   logLevel: 'info',
 };

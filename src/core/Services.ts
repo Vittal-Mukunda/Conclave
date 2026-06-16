@@ -19,6 +19,11 @@ import { AccountLimiter } from '../scheduler/AccountLimiter';
 import { CircuitBreaker } from '../scheduler/CircuitBreaker';
 import { defaultLimitsFor } from '../scheduler/rateLimits';
 import { Account } from '../scheduler/types';
+import { Storage } from '../storage/Storage';
+import { CapabilityRegistry } from '../capability/CapabilityRegistry';
+import { ProbeService } from '../capability/ProbeService';
+import { TelemetryStore, CallRecord } from '../telemetry/TelemetryStore';
+import { CostCalculator } from '../cost/CostCalculator';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -35,9 +40,14 @@ export class Services implements vscode.Disposable {
   readonly providers: ProviderService;
   readonly keyManager: KeyManager;
   readonly scheduler: Scheduler;
+  readonly storage?: Storage;
+  readonly capability?: CapabilityRegistry;
+  readonly telemetry?: TelemetryStore;
+  readonly cost: CostCalculator;
 
   private readonly channel: vscode.OutputChannel;
   private readonly capture: GlobalCaptureHandle;
+  private probeTimer?: ReturnType<typeof setInterval>;
   private lastFatal: ErrorReport | undefined;
 
   constructor(context: vscode.ExtensionContext) {
@@ -52,6 +62,7 @@ export class Services implements vscode.Disposable {
     this.degraded.register(Capability.Lsp, 'full');
     this.degraded.register(Capability.TreeSitter, 'full');
     this.degraded.register(Capability.Skills, 'full');
+    this.degraded.register(Capability.Storage, 'full');
     this.degraded.register(Capability.Paid, 'unavailable', {
       consequence: 'No paid key configured — running on free tiers only.',
       restoreAction: { label: 'Add paid key', kind: 'add', command: 'conclave.openPanel' },
@@ -101,8 +112,59 @@ export class Services implements vscode.Disposable {
       this.logger.warn('scheduler_throttled', { code: report.code, retryAfterMs: report.retryAfterMs });
     });
 
-    this.providers = new ProviderService(registry, this.scheduler, client, this.keys);
+    // Persistence layer: capability/quota registry + telemetry + cost meter.
+    // Degrades (does not crash) if the storage engine cannot open (STATE-4).
+    this.cost = new CostCalculator(registry);
+    try {
+      this.storage = Storage.open(context.globalStorageUri.fsPath);
+      this.capability = new CapabilityRegistry(this.storage.db);
+      this.capability.seed(registry.list());
+      this.telemetry = new TelemetryStore(this.storage.db);
+      this.logger.info('storage_ready', { version: this.storage.version });
+    } catch (err) {
+      this.degraded.set(Capability.Storage, 'unavailable', {
+        consequence: 'Telemetry, cost tracking and the quota registry are off (database unavailable).',
+        restoreAction: { label: 'Open logs', kind: 'docs', command: 'conclave.reportIssue' },
+      });
+      this.errors.report(err, { category: 'state', code: 'STATE-4' });
+    }
+
+    const capability = this.capability;
+    const telemetry = this.telemetry;
+    const observer =
+      capability && telemetry
+        ? (rec: CallRecord) => {
+            telemetry.record(rec);
+            capability.recordOutcome(rec.provider, rec.model, {
+              ok: rec.ok,
+              rateLimited: rec.status === 'PROV-1',
+              latencyMs: rec.latencyMs,
+              tokensOut: rec.tokensOut,
+            });
+          }
+        : undefined;
+
+    this.providers = new ProviderService(registry, this.scheduler, client, this.keys, this.cost, observer);
     this.keyManager = new KeyManager(this.providers, this.errors);
+
+    // Live capacity probing: startup pass + hourly, only for keyed providers.
+    if (capability) {
+      const probe = new ProbeService({
+        registry: capability,
+        hasKey: (id) => this.keys.hasKey(id),
+        probe: async (p) => {
+          const r = await this.providers.testConnection(p.id);
+          return { latencyMs: r.latencyMs };
+        },
+        now: () => Date.now(),
+        logger: this.logger,
+      });
+      void probe.probeAll(registry.list()).catch(() => undefined);
+      this.probeTimer = setInterval(() => {
+        void probe.probeAll(registry.list()).catch(() => undefined);
+      }, 3_600_000);
+      this.probeTimer.unref?.();
+    }
 
     this.capture = installGlobalCapture(this.errors, (report) => this.onFatal(report));
     this.logger.info('services_initialized');
@@ -126,6 +188,10 @@ export class Services implements vscode.Disposable {
   dispose(): void {
     this.capture.dispose();
     this.connectivity.stop();
+    if (this.probeTimer) {
+      clearInterval(this.probeTimer);
+    }
+    this.storage?.close();
     this.channel.dispose();
   }
 }

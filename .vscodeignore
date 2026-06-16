@@ -6,6 +6,8 @@ src/**
 test/**
 docs/**
 node_modules/**
+!node_modules/node-sqlite3-wasm/**
+node_modules/node-sqlite3-wasm/**/*.ts
 **/*.ts
 **/*.map
 esbuild.js

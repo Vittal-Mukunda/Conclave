@@ -69,7 +69,7 @@
     "pretest:integration": "tsc -p tsconfig.test.json",
     "test:integration": "node ./out/test/integration/runTest.js",
     "test": "npm run test:unit",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
@@ -82,5 +82,8 @@
     "mocha": "^10.4.0",
     "typescript": "^5.4.5",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "node-sqlite3-wasm": "^0.8.58"
   }
 }

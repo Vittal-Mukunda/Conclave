@@ -3,7 +3,12 @@ import { LLMClient } from './LLMClient';
 import { ProviderRegistry } from './registry';
 import { Scheduler } from '../scheduler/Scheduler';
 import { estimateMessagesTokens } from './tokenEstimate';
+import { ConclaveError } from '../errors/ErrorReport';
+import { CostCalculator } from '../cost/CostCalculator';
+import { CallRecord } from '../telemetry/TelemetryStore';
 import { ChatRequest, ChatResponse, Provider, ProviderKind } from './types';
+
+export type CallObserver = (record: CallRecord) => void;
 
 export interface ProviderStatusView {
   id: string;
@@ -31,6 +36,8 @@ export class ProviderService {
     private readonly scheduler: Scheduler,
     private readonly client: LLMClient,
     private readonly keys: KeyStore,
+    private readonly cost?: CostCalculator,
+    private readonly observer?: CallObserver,
   ) {}
 
   list(kind?: ProviderKind): Provider[] {
@@ -67,13 +74,20 @@ export class ProviderService {
   /** All provider calls go through the scheduler so rate limits are enforced and
    * failover/backoff apply. The client is only invoked inside the scheduled run,
    * after capacity has been acquired. */
-  chat(providerId: string, req: ChatRequest, stream = false): Promise<ChatResponse> {
+  async chat(providerId: string, req: ChatRequest, stream = false): Promise<ChatResponse> {
     const provider = this.requireProvider(providerId);
-    return this.scheduler.submit<ChatResponse>({
-      providerId,
-      estTokens: this.reserveTokens(req),
-      run: () => this.client.chat(provider, req, { stream }),
-    });
+    try {
+      const res = await this.scheduler.submit<ChatResponse>({
+        providerId,
+        estTokens: this.reserveTokens(req),
+        run: () => this.client.chat(provider, req, { stream }),
+      });
+      this.record(providerId, req.model, 'chat', res, true, 'ok');
+      return res;
+    } catch (err) {
+      this.record(providerId, req.model, 'chat', undefined, false, codeOf(err));
+      throw err;
+    }
   }
 
   /** Minimal round-trip to validate a key/connection. Throws ConclaveError on failure. */
@@ -86,13 +100,58 @@ export class ProviderService {
       maxTokens: 1,
       temperature: 0,
     };
-    const res = await this.scheduler.submit<ChatResponse>({
-      providerId,
-      estTokens: this.reserveTokens(req),
-      priority: 1, // user is waiting on a connection test
-      run: () => this.client.chat(provider, req),
-    });
-    return { ok: true, providerId, model: model.id, latencyMs: res.latencyMs };
+    try {
+      const res = await this.scheduler.submit<ChatResponse>({
+        providerId,
+        estTokens: this.reserveTokens(req),
+        priority: 1, // user is waiting on a connection test
+        run: () => this.client.chat(provider, req),
+      });
+      this.record(providerId, model.id, 'probe', res, true, 'ok');
+      return { ok: true, providerId, model: model.id, latencyMs: res.latencyMs };
+    } catch (err) {
+      this.record(providerId, model.id, 'probe', undefined, false, codeOf(err));
+      throw err;
+    }
+  }
+
+  /** Best-effort telemetry; never throws into the caller. */
+  private record(
+    providerId: string,
+    model: string,
+    stage: string,
+    res: ChatResponse | undefined,
+    ok: boolean,
+    status: string,
+  ): void {
+    if (!this.observer) {
+      return;
+    }
+    const tokensIn = res?.tokensIn ?? 0;
+    const tokensOut = res?.tokensOut ?? 0;
+    const cost = this.cost?.price(providerId, model, tokensIn, tokensOut) ?? {
+      spendUsd: 0,
+      savedUsd: 0,
+      paid: false,
+    };
+    try {
+      this.observer({
+        ts: Date.now(),
+        provider: providerId,
+        model,
+        stage,
+        tokensIn,
+        tokensOut,
+        latencyMs: res?.latencyMs ?? 0,
+        ok,
+        status,
+        costUsd: cost.spendUsd,
+        savedUsd: cost.savedUsd,
+        estimated: res?.estimatedTokens ?? false,
+      });
+    } catch {
+      /* telemetry is best-effort */
+    }
   }
 
   /** Conservative reservation: input estimate + the max possible output. */
@@ -107,4 +166,8 @@ export class ProviderService {
     }
     return provider;
   }
+}
+
+function codeOf(err: unknown): string {
+  return err instanceof ConclaveError ? err.code ?? 'error' : 'error';
 }

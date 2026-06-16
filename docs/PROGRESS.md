@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 3 COMPLETE
+## Status: Phase 4 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -11,8 +11,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 1 | Error & Resilience Framework | ✅ complete |
 | 2 | Provider abstraction + key storage | ✅ complete |
 | 3 | Rate-limit-aware scheduler | ✅ complete |
-| 4 | Capability & quota registry + cost meter | ⬜ next |
-| 5 | Shadow-price engine + budget/spend control | ⬜ |
+| 4 | Capability & quota registry + cost meter | ✅ complete |
+| 5 | Shadow-price engine + budget/spend control | ⬜ next |
 | 6 | Onboarding wizard & first-run | ⬜ |
 | 7 | Code intelligence + localization | ⬜ |
 | 8 | Editing + git checkpoints + repo memory | ⬜ |
@@ -30,6 +30,27 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 4 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Schema CRUD | `capabilityRegistry.test.ts`, `telemetryCost.test.ts` | ✅ |
+| Versioned migration preserves data (STATE-5) | `storage.test.ts` (v1→v2 keeps rows, adds column) | ✅ |
+| Quota decrement + correct reset | `capabilityRegistry.test.ts` | ✅ |
+| Cost math: free saved + paid spend | `telemetryCost.test.ts`, `CostCalculator` | ✅ |
+| Per-model usage rankings | `telemetryCost.test.ts` | ✅ |
+| Probing updates availability (PROV-7) | `probeService.test.ts` | ✅ |
+| Persists across reload | `storage.test.ts` (reopen file DB) | ✅ |
+| Storage degrades, never crashes (STATE-4) | Services try/catch → `storage` unavailable | ✅ |
+| Telemetry recorded from call path | `ProviderService.record` → observer | ✅ |
+| Host activates + DB opens in Electron | integration 5/5 (activation 222ms = open+migrate+seed) | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 115/115 |
+| `.vsix` packages with WASM dep + installs | `npm run package` (560 KB, 15 files) + clean install | ✅ |
+
+**Deviation flagged:** storage engine is `node-sqlite3-wasm` (pure WASM), not the mandated
+`better-sqlite3` (won't compile here; would ABI-mismatch Electron). Abstracted behind `SqlDb` so a
+native engine can be swapped at ship time. See ARCHITECTURE.md "Phase 4".
 
 ## Phase 3 — acceptance gate (all met)
 

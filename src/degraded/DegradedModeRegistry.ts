@@ -15,6 +15,7 @@ export const Capability = {
   Network: 'network',
   Paid: 'paid',
   Skills: 'skills',
+  Storage: 'storage',
 } as const;
 
 export interface CapabilityStatus {

@@ -125,6 +125,40 @@ only invoked inside a scheduled `run` after capacity is acquired ("callable ONLY
 Catalog handled: PROV-1/2/3/4/14/15, SETUP-8. Invariant enforced: no call exceeds a live
 RPM/TPM/RPD limit.
 
+## Phase 4 — Capability/quota registry + telemetry + cost meter
+
+Persistent learning + accounting layer in SQLite. Degrades (never crashes) if the engine can't open.
+
+> **Storage engine deviation (deliberate, flagged):** the master prompt mandates `better-sqlite3`,
+> but it cannot compile in this environment (no Node-24 prebuild + no MSVC build tools) and would
+> ABI-mismatch the Electron host anyway. We use **`node-sqlite3-wasm`** (pure WASM, no native build,
+> ABI-independent — verified loading in both Node 24 (vitest) and the VS Code/Electron host). It is
+> abstracted behind the `SqlDb` interface so a native `better-sqlite3` adapter can be swapped in at
+> ship time with zero changes to the repositories.
+
+- **SqlDb** (`src/storage/SqlDb.ts`): engine-agnostic interface (`run/get/all/exec/userVersion/
+  transaction`) + `WasmSqlDb` adapter + `openDatabase`.
+- **migrations** (`src/storage/migrations.ts`): versioned, `user_version`-tracked, each in a
+  transaction; never edit a shipped migration. Tables: `model`, `call`, `quota` (STATE-5).
+- **Storage** (`src/storage/Storage.ts`): `open(dir)` / `memory()`, runs migrations; the caller
+  catches open failures and marks `storage` unavailable (STATE-4 degrade).
+- **CapabilityRegistry** (`src/capability/CapabilityRegistry.ts`): per-(provider,model) published/
+  probed limits, rolling latency (EWMA) + throughput, success/error/429 counts, availability,
+  prices; idempotent `seed`; `setProbe`; `recordOutcome`; and a persisted **quota meter** with lazy
+  correct resets (survives reload).
+- **TelemetryStore** (`src/telemetry/TelemetryStore.ts`): per-call insert; `totals` (spend vs
+  saved), `rankings` (per-model usage, busiest first), `recent`.
+- **CostCalculator** (`src/cost/CostCalculator.ts`): pure pricing — paid → real USD spend; free →
+  "money saved" valued at a reference frontier price (COST-5: estimate, flagged).
+- **ProbeService** (`src/capability/ProbeService.ts`): live capacity probing of keyed providers →
+  updates availability + latency; PROV-7 (schema change) logged + model marked unavailable.
+- **Wiring:** `ProviderService` now records a `CallRecord` after every chat/probe (best-effort) →
+  telemetry insert + `recordOutcome`. `Services` opens storage at `globalStorageUri`, seeds models,
+  wires the observer, runs a startup + hourly probe pass (keyed providers only).
+
+Packaging: `node-sqlite3-wasm` is a runtime dep shipped in the `.vsix` (esbuild external;
+`.vscodeignore` re-includes it). Catalog handled: PROV-7, COST-5, STATE-4/5.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:
