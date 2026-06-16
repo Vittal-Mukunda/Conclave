@@ -3,14 +3,14 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 1 COMPLETE
+## Status: Phase 2 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
 | 0 | Foundation & extension skeleton | ✅ complete |
 | 1 | Error & Resilience Framework | ✅ complete |
-| 2 | Provider abstraction + key storage | ⬜ next |
-| 3 | Rate-limit-aware scheduler | ⬜ |
+| 2 | Provider abstraction + key storage | ✅ complete |
+| 3 | Rate-limit-aware scheduler | ⬜ next |
 | 4 | Capability & quota registry + cost meter | ⬜ |
 | 5 | Shadow-price engine + budget/spend control | ⬜ |
 | 6 | Onboarding wizard & first-run | ⬜ |
@@ -30,6 +30,28 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 2 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Free + paid providers under one interface | `registry.test.ts` (free & paid lists, prices) | ✅ |
+| Anthropic paid adapter round-trips | `anthropicAdapter.test.ts` + `llmClient.test.ts` | ✅ |
+| Each error -> ErrorReport with correct action/code | `providerErrors.test.ts`, `llmClient.test.ts` | ✅ |
+| Malformed JSON handled, no crash (PROV-5) | `llmClient.test.ts` | ✅ |
+| Empty response (PROV-6) | `llmClient.test.ts` / `openaiAdapter.test.ts` | ✅ |
+| 404 -> PROV-8 + equivalent-model fallback | `llmClient.test.ts`, `registry.equivalentModel` | ✅ |
+| Refusal -> PROV-9 retry-different-model (PROV-9) | adapter + client tests | ✅ |
+| finish=length surfaced not thrown (PROV-11) | `llmClient.test.ts` | ✅ |
+| Stream drop -> PROV-12, no partial commit | `llmClient.test.ts` | ✅ |
+| Paid billing fail -> PROV-13 fallback to free | `providerErrors.test.ts` | ✅ |
+| Geo-block (SETUP-10) | `providerErrors.test.ts` | ✅ |
+| Keys persist in SecretStorage | `keyStore.test.ts` (persist across instances) | ✅ |
+| No key in logs (SEC-4) | `keyStore.test.ts`, `llmClient.test.ts` (redactor registration) | ✅ |
+| Token estimation fallback | `llmClient.test.ts` (estimatedTokens) | ✅ |
+| Host activates + `manageKeys` registered | integration 5/5 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 73/73 |
+| `.vsix` packages + installs clean | `npm run package` (19.5 KB) + clean-profile install | ✅ |
 
 ## Phase 1 — acceptance gate (all met)
 

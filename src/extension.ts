@@ -10,10 +10,10 @@ let services: Services | undefined;
 // becomes an ErrorReport surfaced to the user, never an unhandled crash.
 export function activate(context: vscode.ExtensionContext): void {
   try {
-    services = new Services();
+    services = new Services(context);
     context.subscriptions.push(services);
 
-    const provider = new ConclaveViewProvider(context.extensionUri);
+    const provider = new ConclaveViewProvider(context.extensionUri, services.keyManager);
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(ConclaveViewProvider.viewType, provider),
     );
@@ -44,6 +44,13 @@ export function activate(context: vscode.ExtensionContext): void {
           void vscode.window.showInformationMessage(
             online ? 'conclave: you are online.' : 'conclave: still offline — actions are queued.',
           );
+        }),
+      ),
+      vscode.commands.registerCommand(
+        'conclave.manageKeys',
+        guard(async () => {
+          await services?.keyManager.manage();
+          await provider.postProviders();
         }),
       ),
     );

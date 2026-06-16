@@ -7,6 +7,12 @@ import { ErrorReport } from '../errors/ErrorReport';
 import { installGlobalCapture, GlobalCaptureHandle } from '../errors/globalCapture';
 import { Capability, DegradedModeRegistry } from '../degraded/DegradedModeRegistry';
 import { ConnectivityMonitor } from '../connectivity/ConnectivityMonitor';
+import { KeyStore } from '../keys/KeyStore';
+import { ProviderRegistry } from '../providers/registry';
+import { LLMClient } from '../providers/LLMClient';
+import { ProviderService } from '../providers/ProviderService';
+import { FetchTransport } from '../providers/http';
+import { KeyManager } from '../keys/KeyManager';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -19,12 +25,15 @@ export class Services implements vscode.Disposable {
   readonly errors: ErrorService;
   readonly degraded: DegradedModeRegistry;
   readonly connectivity: ConnectivityMonitor;
+  readonly keys: KeyStore;
+  readonly providers: ProviderService;
+  readonly keyManager: KeyManager;
 
   private readonly channel: vscode.OutputChannel;
   private readonly capture: GlobalCaptureHandle;
   private lastFatal: ErrorReport | undefined;
 
-  constructor() {
+  constructor(context: vscode.ExtensionContext) {
     this.channel = vscode.window.createOutputChannel('conclave');
     this.redactor = new SecretRedactor();
     this.logger = new Logger({ append: (line) => this.channel.appendLine(line) }, this.redactor);
@@ -53,6 +62,18 @@ export class Services implements vscode.Disposable {
         queued: this.connectivity.queuedCount,
       });
     });
+
+    // Provider layer: keys in SecretStorage, registry, transport-mapped client.
+    this.keys = new KeyStore(context.secrets, this.redactor);
+    const registry = new ProviderRegistry();
+    const client = new LLMClient({
+      transport: new FetchTransport(),
+      keyProvider: (providerId) => this.keys.getKey(providerId),
+      redactor: this.redactor,
+      logger: this.logger,
+    });
+    this.providers = new ProviderService(registry, client, this.keys);
+    this.keyManager = new KeyManager(this.providers, this.errors);
 
     this.capture = installGlobalCapture(this.errors, (report) => this.onFatal(report));
     this.logger.info('services_initialized');

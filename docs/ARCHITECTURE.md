@@ -62,6 +62,38 @@ is the thin glue that wires it to the host.
 Catalog entries handled: **UX-1** (any error -> actionable report), **UX-4** (offline + queued
 resume), **SEC-4** (no secret in logs/reports).
 
+## Phase 2 — Provider abstraction + secure keys
+
+Uniform BYOK layer for free + paid LLM APIs. Core is `vscode`-free with an injected transport;
+SecretStorage + dialogs are the glue.
+
+- **Types** (`src/providers/types.ts`): `Provider`, `ModelInfo` (incl. price metadata), `ChatRequest`/
+  `ChatResponse` (`{text, tokensIn, tokensOut, finishReason, latencyMs, estimatedTokens, ...}`).
+- **Transport** (`src/providers/http.ts`): `HttpTransport` interface (`FetchTransport` default) so the
+  client is testable without network. Handles timeout via AbortController and SSE line decoding;
+  raises `TransportError`.
+- **Adapters** (`src/providers/adapters/`): `ChatAdapter` contract; `OpenAICompatibleAdapter` (default
+  for Groq/OpenRouter/Cerebras/Mistral/DeepSeek/GitHub Models/Gemini-OpenAI/OpenAI) and a dedicated
+  `AnthropicAdapter` (x-api-key, anthropic-version, system field, content blocks, stop_reason). Pure
+  build/parse; throw typed errors on empty/malformed/refusal.
+- **Errors** (`src/providers/errors.ts`): maps transport/HTTP/parse failures onto the Phase 1
+  taxonomy with catalog codes — 401/403→SETUP-2, quota→SETUP-4, paid billing→PROV-13, 404→PROV-8,
+  429→PROV-1, 451→SETUP-10, 5xx→PROV-3, timeout→PROV-4, network→SETUP-8, context→PROV-10, plus
+  PROV-5/6/9/12. Each carries ≥1 recovery action.
+- **registry** (`src/providers/registry.ts`): built-in free + paid catalog; `getAdapter`;
+  `equivalentModel` for PROV-8 fallback.
+- **LLMClient** (`src/providers/LLMClient.ts`): `chat()` non-stream + stream; registers the key with
+  the redactor before use (SEC-4); a dropped stream → PROV-12 with NO partial commit; estimates
+  tokens when usage is absent. Raw transport only — retries/rate-limits come in Phase 3.
+- **KeyStore** (`src/keys/KeyStore.ts`): wraps `SecretStorage` (injected `SecretStore` interface);
+  registers/unregisters keys with the redactor; returns presence flags, never keys, to the UI.
+- **ProviderService** + **KeyManager** + **PanelHost**: service ties registry+client+keys and a
+  `testConnection`; KeyManager drives the per-provider add/update/clear/test via native dialogs and
+  implements PanelHost so the webview buttons reuse the same flows. The sidebar now lists providers
+  (free/paid + key-set state) — keys never cross into the webview.
+
+Catalog handled: SETUP-2/3/4/10, PROV-5/6/8/9/10/11/12/13, SEC-4. Command: `conclave.manageKeys`.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

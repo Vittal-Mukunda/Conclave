@@ -46,6 +46,10 @@
       {
         "command": "conclave.checkConnectivity",
         "title": "conclave: Check Connectivity"
+      },
+      {
+        "command": "conclave.manageKeys",
+        "title": "conclave: Manage Provider Keys"
       }
     ],
     "keybindings": [

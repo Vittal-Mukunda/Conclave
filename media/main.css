@@ -9,11 +9,11 @@ body {
 main {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 h1 {
-  font-size: 1.4em;
+  font-size: 1.3em;
   margin: 0;
 }
 
@@ -22,14 +22,82 @@ h1 {
   opacity: 0.8;
 }
 
+ul#providers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider {
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.provider-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.provider-name {
+  font-weight: 600;
+}
+
+.tag {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 8px;
+  opacity: 0.9;
+}
+
+.tag-free {
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+.tag-paid {
+  background: var(--vscode-inputValidation-warningBackground, #6b5300);
+  color: var(--vscode-foreground);
+}
+
+.key-set {
+  color: var(--vscode-testing-iconPassed, #3fb950);
+  font-size: 0.85em;
+}
+
+.key-unset {
+  opacity: 0.6;
+  font-size: 0.85em;
+}
+
+.provider-actions {
+  display: flex;
+  gap: 6px;
+}
+
 button {
-  align-self: flex-start;
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-  border: none;
-  padding: 6px 14px;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  border: 1px solid var(--vscode-button-border, rgba(128, 128, 128, 0.4));
+  padding: 3px 10px;
   cursor: pointer;
   border-radius: 2px;
+  font-size: 0.85em;
+}
+
+button.primary {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border-color: transparent;
 }
 
 button:hover {
@@ -43,5 +111,7 @@ button:focus-visible {
 
 #status {
   font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.85em;
   opacity: 0.9;
+  min-height: 1.2em;
 }

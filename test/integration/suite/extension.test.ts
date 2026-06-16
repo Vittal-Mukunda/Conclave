@@ -27,6 +27,7 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.reportIssue'), 'reportIssue not registered');
     assert.ok(commands.includes('conclave.checkConnectivity'), 'checkConnectivity not registered');
+    assert.ok(commands.includes('conclave.manageKeys'), 'manageKeys not registered');
   });
 
   it('checkConnectivity executes without throwing', async () => {
