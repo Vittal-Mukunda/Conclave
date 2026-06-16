@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 13 COMPLETE
+## Status: Phase 14 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -21,8 +21,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 11 | Difficulty estimator + cascade router | ✅ complete |
 | 12 | Competence learner (bandit) | ✅ complete |
 | 13 | Assignment solver + diverse council | ✅ complete |
-| 14 | Best-of-N + strong verifier-selector | ⬜ next |
-| 15 | Security & privacy hardening | ⬜ |
+| 14 | Best-of-N + strong verifier-selector | ✅ complete |
+| 15 | Security & privacy hardening | ⬜ next |
 | 16 | Skills I: format/ingest/retrieval | ⬜ |
 | 17 | Skills II: composition/injection | ⬜ |
 | 18 | Skills III: security sandbox/marketplace | ⬜ |
@@ -30,6 +30,32 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 14 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| CodeT dual-execution consensus: \|passing_sols\|·\|passing_tests\|² | `codeT.test.ts` (cluster·tests²; quadratic in tests) | ✅ |
+| Consensus clusters by exact pass signature (agreement, not count) | `codeT.test.ts` (same-count different-signature → separate clusters) | ✅ |
+| Strong selector fuses consensus + type + critic + coverage | `selector.test.ts` (consensus winner; signals break ties) | ✅ |
+| Best@K-plateau diagnostic: oracle passes but winner fails → selector miss | `selector.test.ts` (selectorMiss flagged; clear when winner passes) | ✅ |
+| Weitzman/Pandora: open in reservation order, stop when best beats remaining | `pandora.test.ts` (order; early stop; keep-going; `pandoraStop`) | ✅ |
+| Endogenous N with a K ceiling | `pandora.test.ts`/`bestOfN.test.ts` (maxOpens / maxSamples cap) | ✅ |
+| CODING stop = first candidate passing the ladder | `bestOfN.test.ts` (ladderPass halts at first draw; `stopWhen`) | ✅ |
+| Lazy sampling — unopened sources never drawn | `bestOfN.test.ts` (draw log shows only opened) | ✅ |
+| Selector picks consensus winner across all drawn candidates | `bestOfN.test.ts` (cluster wins) | ✅ |
+| Two-phase latency budget (deadline stop) | `BestOfN` `deadlineMs`/`now` (Pandora-over-time seam) | ✅ |
+| Wired: BestOfNService + engine; selector pipeline reported | `Services` (bestOfN); command `conclave.bestOfN` | ✅ |
+| Host activates + bestOfN command registered | integration 14/14 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 322/322 |
+| `.vsix` packages | `npm run package` (593 KB, 15 files) | ✅ |
+
+**Engine deviation (flagged):** the candidate SAMPLER is an LLM author, which
+lands with codegen (Phase 13/14 of the OR design assume it). The full
+sampling/stopping/selection pipeline ships and is unit-tested over injected
+solutions; `BestOfNService.run` is callable now and the agent plugs the sampler
+into it once authoring exists — same deviation pattern as the agent/council
+engines.
 
 ## Phase 13 — acceptance gate (all met)
 

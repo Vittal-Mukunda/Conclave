@@ -94,6 +94,10 @@
       {
         "command": "conclave.planCouncil",
         "title": "conclave: Assign Author & Review Council"
+      },
+      {
+        "command": "conclave.bestOfN",
+        "title": "conclave: Best-of-N Selector Status"
       }
     ],
     "keybindings": [

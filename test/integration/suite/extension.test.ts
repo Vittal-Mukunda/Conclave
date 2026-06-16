@@ -82,4 +82,9 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.planCouncil'), 'planCouncil not registered');
   });
+
+  it('registers the Phase 14 best-of-N command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.bestOfN'), 'bestOfN not registered');
+  });
 });

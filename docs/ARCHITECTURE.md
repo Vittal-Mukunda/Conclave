@@ -529,6 +529,42 @@ No new edge-case IDs — an OR-brain layer. Capacity ties back to the Phase 3
 scheduler limits; the council's heterogeneity requirement is the AVOID-rule from
 the build-plan ("homogeneous debate/consensus = echo chamber") made structural.
 
+## Phase 14 — Best-of-N + strong verifier-selector
+
+The #1 quality lever (OR design §7): sample several candidate solutions and let
+a STRONG selector — grounded in execution, not self-report — pick the winner.
+Pure + unit-tested; `BestOfNService` glues.
+
+- **types** (`src/bestofn/types.ts`): `Solution` (test-pass vector + type/critic/
+  coverage signals + `ladderPass`), `SampleSource` (a Pandora box: reservation
+  cap + `draw`), `passFraction` (the cheap realized reward).
+- **CodeT** (`src/bestofn/CodeT.ts`): dual-execution consensus —
+  `|passing_solutions|·|passing_tests|²`. Solutions are clustered by their exact
+  test-pass signature (functional agreement); quadratic in tests so broad
+  correctness dominates mere agreement.
+- **Selector** (`src/bestofn/Selector.ts`): fuses normalised CodeT consensus
+  (weight 0.5) with the LSP/type signal, a diverse-critic vote, and changed-line
+  coverage. Emits the **selectorMiss** diagnostic (oracle Pass@K satisfiable but
+  the chosen winner fails) — the signal to invest in the verifier rather than a
+  larger K.
+- **Pandora** (`src/bestofn/Pandora.ts`): Weitzman optimal stopping — open boxes
+  in decreasing reservation order, stop once the best reward in hand beats every
+  remaining cap (`pandoraStop`). Makes N endogenous. `maxOpens` is the K ceiling;
+  `stopWhen` is the coding stop.
+- **BestOfN** (`src/bestofn/BestOfN.ts`): async orchestrator — draws in
+  reservation order with three stops: CODING (first `ladderPass`), Pandora
+  (reservation dominance), and the K-ceiling / latency budget (`deadlineMs` +
+  injected `now` for the two-phase Pandora-over-time). Ranks the drawn set with
+  the Selector.
+- **BestOfNService** (`src/bestofn/BestOfNService.ts`): vscode glue. `run` is
+  callable over injected sources today; command `conclave.bestOfN` reports the
+  pipeline. The LLM **sampler** (candidate authoring) lands with codegen — the
+  same flagged deviation as the agent/council engines; the engine is complete and
+  the sampler drops into the `SampleSource.draw` seam.
+
+"Best@K plateaus near oracle Pass@K → invest in the verifier, not K" is made
+operational by `selectorMiss`. No new edge-case IDs — an OR-brain layer.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

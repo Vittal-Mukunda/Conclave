@@ -37,6 +37,7 @@ import { RouterService } from '../router/RouterService';
 import { BanditStore } from '../learn/BanditStore';
 import { CompetenceService } from '../learn/CompetenceService';
 import { CouncilService } from '../council/CouncilService';
+import { BestOfNService } from '../bestofn/BestOfNService';
 import { AgentService } from '../agent/AgentService';
 
 /**
@@ -60,6 +61,7 @@ export class Services implements vscode.Disposable {
   readonly router: RouterService;
   readonly competence: CompetenceService;
   readonly council: CouncilService;
+  readonly bestOfN: BestOfNService;
   readonly agent: AgentService;
   readonly repoMemory?: RepoMemory;
   readonly scheduler: Scheduler;
@@ -217,6 +219,11 @@ export class Services implements vscode.Disposable {
     // convergent stages, a diverse >=2-family council (diversity-pruned) for
     // divergent ones, seated by the learner's conservative LCB competence.
     this.council = new CouncilService(this.logger, this.router, this.competence);
+    // Best-of-N + strong verifier-selector (Phase 14): CodeT dual-execution
+    // consensus fused with type/critic/coverage signals, Pandora optimal stopping
+    // (endogenous N, K≤8), CODING-stop on the first ladder pass. Candidate
+    // authoring (the LLM sampler) lands with codegen — same flagged deviation.
+    this.bestOfN = new BestOfNService(this.logger);
     // Agent loop (Phase 10): control FSM wiring localize -> edit -> verify with
     // checkpoint/rollback + budget guards. The router (Phase 11) names the tier
     // and the learner (Phase 12) picks the model. Codegen brain deferred.

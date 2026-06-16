@@ -144,6 +144,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.council.planCouncilCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.bestOfN',
+        guard(async () => {
+          await services?.bestOfN.statusCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();
