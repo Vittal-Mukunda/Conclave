@@ -54,4 +54,9 @@ describe('conclave extension', () => {
       'rememberTestCommand not registered',
     );
   });
+
+  it('registers the Phase 9 verify command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.verify'), 'verify not registered');
+  });
 });

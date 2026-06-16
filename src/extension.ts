@@ -114,6 +114,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.editing.rememberTestCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.verify',
+        guard(async () => {
+          await services?.verify.runVerifyCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

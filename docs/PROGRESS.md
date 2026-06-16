@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 8 COMPLETE
+## Status: Phase 9 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -16,8 +16,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 6 | Onboarding wizard & first-run | ✅ complete |
 | 7 | Code intelligence + localization | ✅ complete |
 | 8 | Editing + git checkpoints + repo memory | ✅ complete |
-| 9 | Verification ladder + sandbox | ⬜ next |
-| 10 | Agent loop | ⬜ |
+| 9 | Verification ladder + sandbox | ✅ complete |
+| 10 | Agent loop | ⬜ next |
 | 11 | Difficulty estimator + cascade router | ⬜ |
 | 12 | Competence learner (bandit) | ⬜ |
 | 13 | Assignment solver + diverse council | ⬜ |
@@ -30,6 +30,24 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 9 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Escalating ladder runs weakest->strongest, passes when all pass | `verificationLadder.test.ts` (order + all-pass) | ✅ |
+| Failed rung short-circuits remaining rungs | `verificationLadder.test.ts` (fail -> skip rest) | ✅ |
+| VER-1: flaky -> run twice, flag | `verificationLadder.test.ts` (re-run -> flaky), `confidenceModel.test.ts` (lowers + flags) | ✅ |
+| VER-2/4: hang/slow -> time limit kills + partial report | `verificationLadder.test.ts` (timeout halts), `confidenceModel.test.ts` (cap 0.5) | ✅ |
+| VER-3: needs services -> partial verify + lowered confidence | `confidenceModel.test.ts` (service-skipped flag + penalty) | ✅ |
+| VER-5: NO tests -> LSP/type-check only, LOW confidence + flag | `confidenceModel.test.ts` (cap 0.4 + flag), `verifyDetect.test.ts` (no test rung) | ✅ |
+| VER-6: test cmd undetectable -> ask once; remember in repo memory | `verifyDetect.test.ts` (remembered overrides); `VerifyService.detectRungs` reads RepoMemory | ✅ |
+| VER-9: passes sandbox/fails host -> note env diff | `verificationLadder.test.ts` (hostRunner divergence -> VER-9 flag) | ✅ |
+| VER-10: no coverage tool -> conservative LOW confidence + flag | `confidenceModel.test.ts` (cap 0.85 + flag) | ✅ |
+| Sandbox honestly flagged degraded (process, not container; VER-7/8 future) | `VerifyService` sets Capability.Sandbox = degraded; `ProcessSandbox` timeout+buffer cap | ✅ |
+| Host activates + verify command registered | integration 9/9 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 218/218 |
+| `.vsix` packages | `npm run package` (580 KB, 15 files) | ✅ |
 
 ## Phase 8 — acceptance gate (all met)
 

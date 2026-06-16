@@ -312,6 +312,50 @@ remembered facts), mirroring the Phase 4 degrade-don't-crash posture.
 Catalog handled: EDIT-1, EDIT-2, EDIT-3, EDIT-4, EDIT-5, EDIT-6, EDIT-7, EDIT-8,
 EDIT-9, VER-6, STATE-6 (and STATE-5 via migration v4).
 
+## Phase 9 — Verification ladder + sandbox
+
+The honesty layer: after an edit, *how sure are we it's correct?* A ladder of
+escalating checks runs weakest-to-strongest and produces a **calibrated**
+confidence — never falsely high. The same rule as localization (LOC-1): weak
+evidence caps the score and always raises a visible flag.
+
+> **Engine deviation (deliberate, flagged):** the master plan wants a real
+> container sandbox (Docker/Firecracker, cgroup memory limits, cached images).
+> That's a heavy host dependency, so Phase 9 ships a **process sandbox** —
+> subprocess + time limit + output cap — behind the `CommandRunner` interface. A
+> real container runner drops in unchanged (VER-7 OOM via cgroups, VER-8 cached
+> images). Capability **Sandbox** is honestly marked **degraded** so confidence
+> stays conservative and the UI can say "no container — results may differ".
+
+- **types** (`src/verify/types.ts`): `Rung` (kind + command + timeout +
+  `detectFlake`), `RunResult`, `RungResult`, `Verdict`, and the `CommandRunner`
+  interface (host = sandbox, tests = fake).
+- **detect** (`src/verify/detect.ts`): pure rung builder from `package.json`
+  scripts + the remembered test command (VER-6). No test command -> no test rung,
+  which the model turns into VER-5 rather than a false pass.
+- **ConfidenceModel** (`src/verify/ConfidenceModel.ts`): pure scoring. Weighted
+  pass fraction, then ceilings/penalties: VER-5 no tests (cap 0.4), VER-10 no
+  coverage (cap 0.85), VER-2/4 timeout (cap 0.5), VER-1 flaky (×0.7), VER-3
+  service-skipped (×0.8), VER-9 env diff (×0.6), failure (cap 0.2). Every cap
+  emits a plain-language flag.
+- **VerificationLadder** (`src/verify/VerificationLadder.ts`): pure orchestration
+  over `CommandRunner`. Runs rungs in order, short-circuits on a hard
+  fail/timeout (later rungs skipped — their result would be meaningless),
+  re-runs flake-detecting tests and marks divergence `flaky` (VER-1), and
+  optionally re-runs a passing test rung on a host runner to detect an
+  environment difference (VER-9). Assembles the Verdict via the model.
+- **ProcessSandbox** (`src/verify/Sandbox.ts`): the shipped `CommandRunner` —
+  `child_process.exec` with a time limit (kill -> `timedOut`, VER-2/4) and an
+  output cap (overflow -> failure, never a crash). stdin detached so an
+  input-reading command can't hang the run.
+- **VerifyService** (`src/verify/VerifyService.ts`): vscode glue. Reads
+  `package.json` scripts + RepoMemory (VER-6), builds the ladder, runs it on the
+  sandbox in the workspace root, marks Sandbox degraded, and surfaces the verdict
+  (confidence % + per-rung status + first caveat). Command `conclave.verify`.
+
+Catalog handled: VER-1, VER-2, VER-3, VER-4, VER-5, VER-6 (consumes Phase 8 repo
+memory), VER-9, VER-10. VER-7/VER-8 are deferred to a real container runner.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

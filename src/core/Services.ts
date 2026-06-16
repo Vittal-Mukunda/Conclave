@@ -32,6 +32,7 @@ import { OnboardingHost } from '../onboarding/OnboardingHost';
 import { CodeIntelService } from '../codeintel/CodeIntelService';
 import { RepoMemory } from '../editing/RepoMemory';
 import { EditService } from '../editing/EditService';
+import { VerifyService } from '../verify/VerifyService';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -50,6 +51,7 @@ export class Services implements vscode.Disposable {
   readonly onboarding: OnboardingHost;
   readonly codeIntel: CodeIntelService;
   readonly editing: EditService;
+  readonly verify: VerifyService;
   readonly repoMemory?: RepoMemory;
   readonly scheduler: Scheduler;
   readonly storage?: Storage;
@@ -188,6 +190,9 @@ export class Services implements vscode.Disposable {
     // Editing + git checkpoints + repo memory (Phase 8). Repo memory needs
     // storage; absent it, editing/checkpoints still work (just no remembered facts).
     this.editing = new EditService(this.logger, this.errors, this.repoMemory);
+    // Verification ladder + sandbox (Phase 9). Marks Sandbox degraded (process,
+    // not container). Reuses the remembered test command (VER-6) from repo memory.
+    this.verify = new VerifyService(this.degraded, this.logger, this.repoMemory);
 
     // Live capacity probing: startup pass + hourly, only for keyed providers.
     if (capability) {
