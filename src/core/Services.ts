@@ -29,6 +29,7 @@ import { PricedCost } from '../cost/PricedCost';
 import { BudgetManager } from '../cost/BudgetManager';
 import { CostPolicy } from '../cost/CostPolicy';
 import { OnboardingHost } from '../onboarding/OnboardingHost';
+import { CodeIntelService } from '../codeintel/CodeIntelService';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -45,6 +46,7 @@ export class Services implements vscode.Disposable {
   readonly providers: ProviderService;
   readonly keyManager: KeyManager;
   readonly onboarding: OnboardingHost;
+  readonly codeIntel: CodeIntelService;
   readonly scheduler: Scheduler;
   readonly storage?: Storage;
   readonly capability?: CapabilityRegistry;
@@ -176,6 +178,8 @@ export class Services implements vscode.Disposable {
     this.providers = new ProviderService(registry, this.scheduler, client, this.keys, this.cost, observer);
     this.keyManager = new KeyManager(this.providers, this.errors);
     this.onboarding = new OnboardingHost(context, this.providers, this.keyManager, this.errors);
+    // Code intelligence / localization (Phase 7). Indexed lazily on first query.
+    this.codeIntel = new CodeIntelService(this.degraded, this.logger);
 
     // Live capacity probing: startup pass + hourly, only for keyed providers.
     if (capability) {

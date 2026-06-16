@@ -40,4 +40,9 @@ describe('conclave extension', () => {
     assert.ok(commands.includes('conclave.startOnboarding'), 'startOnboarding not registered');
     assert.ok(commands.includes('conclave.initGit'), 'initGit not registered');
   });
+
+  it('registers the Phase 7 localize command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.localize'), 'localize not registered');
+  });
 });

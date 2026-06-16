@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 6 COMPLETE
+## Status: Phase 7 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -14,8 +14,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 4 | Capability & quota registry + cost meter | ✅ complete |
 | 5 | Shadow-price engine + budget/spend control | ✅ complete |
 | 6 | Onboarding wizard & first-run | ✅ complete |
-| 7 | Code intelligence + localization | ⬜ next |
-| 8 | Editing + git checkpoints + repo memory | ⬜ |
+| 7 | Code intelligence + localization | ✅ complete |
+| 8 | Editing + git checkpoints + repo memory | ⬜ next |
 | 9 | Verification ladder + sandbox | ⬜ |
 | 10 | Agent loop | ⬜ |
 | 11 | Difficulty estimator + cascade router | ⬜ |
@@ -30,6 +30,26 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 7 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Fuse lexical + semantic + symbol + dep-graph -> FILE+LINE ranges | `codeintelLocalize.test.ts` (CodeIndex e2e: file+symbol+range) | ✅ |
+| Precise line ranges (symbol-tightened) | `codeintelLocalize.test.ts` | ✅ |
+| LOC-1: low/ambiguous confidence -> widen/ask, never false "use" | `codeintelLocalize.test.ts` (fuse thresholds + unknown-topic) | ✅ |
+| LOC-2: lazy/incremental index (build/update/remove) | `CodeIndex.update/remove`, `CodeIntelService.ensureIndexed` lazy | ✅ |
+| LOC-3: gitignore + binary/generated/vendored exclude | `codeintelIndex.test.ts` (Ignore globs/anchor/negate) | ✅ |
+| LOC-4: unreadable/odd-encoding files skipped w/ note | `CodeIntelService.buildWorkspace` try/catch skip+log | ✅ |
+| LOC-5: large file chunking (overlapping line ranges) | `codeintelIndex.test.ts` (chunkFile) + size-cap skip | ✅ |
+| LOC-6: stale embeddings re-embed only on hash change | `codeintelIndex.test.ts` (VectorIndex.upsert) | ✅ |
+| BM25 lexical ranking | `codeintelIndex.test.ts` | ✅ |
+| Heuristic symbol extraction (fn/class/iface/const/py) | `codeintelLocalize.test.ts` (HeuristicSymbolExtractor) | ✅ |
+| Dependency graph edges + proximity | `codeintelLocalize.test.ts` (DependencyGraph) | ✅ |
+| Capability honestly flagged degraded (no real LSP/tree-sitter yet) | `CodeIntelService` sets Lsp/TreeSitter = degraded | ✅ |
+| Host activates + localize command registered | integration 7/7 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 168/168 |
+| `.vsix` packages | `npm run package` (573 KB, 15 files) | ✅ |
 
 ## Phase 6 — acceptance gate (all met)
 
@@ -164,6 +184,13 @@ and palette, and the Ping button shows "pong received...". All non-visual behavi
 automated integration test above.
 
 ## Notes / debt carried forward
+
+- **Phase 7 engine deviation:** localization ships pure-TS defaults
+  (`HeuristicSymbolExtractor`, `HashingEmbedder`, hand-rolled cosine) behind the
+  `SymbolExtractor`/`Embedder` interfaces instead of real LSP + web-tree-sitter +
+  provider embeddings + ml-matrix (heavy native/WASM deps). Capability flagged
+  **degraded**. Swap in real engines via the interfaces in a later hardening pass.
+  See ARCHITECTURE.md "Phase 7". `[[storage-engine-wasm]]`-style deviation.
 
 - `npm audit` reports 9 vulns (5 moderate / 3 high / 1 critical) — all in **dev** tooling
   (vsce/test-electron transitive deps), none shipped in the `.vsix`. Revisit during Phase 22

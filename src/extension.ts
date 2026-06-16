@@ -80,6 +80,28 @@ export function activate(context: vscode.ExtensionContext): void {
           await provider.postOnboarding();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.localize',
+        guard(async () => {
+          const query = await vscode.window.showInputBox({
+            title: 'conclave — localize',
+            prompt: 'Describe the change; conclave finds the code to edit.',
+            ignoreFocusOut: true,
+          });
+          if (!query) {
+            return;
+          }
+          const result = await services?.codeIntel.localize(query);
+          if (!result) {
+            return;
+          }
+          const top = result.candidates[0];
+          const summary = top
+            ? `${result.action.toUpperCase()} (conf ${result.confidence.toFixed(2)}): ${top.file}:${top.startLine}-${top.endLine}${top.symbol ? ` [${top.symbol}]` : ''}`
+            : `${result.action.toUpperCase()}: ${result.note ?? 'no candidates'}`;
+          void vscode.window.showInformationMessage(`conclave: ${summary}`);
+        }),
+      ),
     );
 
     services.connectivity.start();

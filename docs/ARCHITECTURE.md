@@ -216,6 +216,55 @@ vscode-free + unit-tested; the wizard dialogs + git/folder actions are the glue.
 
 Catalog handled: UX-5, SETUP-1, SETUP-11, SETUP-12.
 
+## Phase 7 — Code intelligence + localization
+
+The #2 strength lever: the dominant agent failure is editing the WRONG PLACE, so
+this layer turns a natural-language task into precise FILE+LINE ranges with a
+calibrated confidence. All ranking is pure + deterministic; the vscode host only
+feeds it files.
+
+> **Engine deviation (deliberate, flagged):** the master prompt mandates real LSP
+> + web-tree-sitter + provider/embedding models + ml-matrix. Those are heavy
+> (native/WASM) deps that risk the same build/ABI problems as better-sqlite3, so
+> Phase 7 ships **deterministic pure-TS defaults behind interfaces**:
+> `HeuristicSymbolExtractor` (regex + brace/indent ranges) implements
+> `SymbolExtractor`; `HashingEmbedder` (feature-hashing) implements `Embedder`;
+> cosine is hand-rolled (no ml-matrix). A real tree-sitter/LSP extractor and
+> provider-backed embedder drop in via the same interfaces with no change to the
+> fusion. The capability is honestly marked **degraded** (Lsp/TreeSitter) so the
+> UI/router know precision is reduced.
+
+- **types** (`src/codeintel/types.ts`): `SourceFile`/`Chunk`/`SymbolDef`/
+  `LocationCandidate`/`LocalizationResult` + the `SymbolExtractor` / `Embedder`
+  pluggable interfaces.
+- **ignore** (`src/codeintel/ignore.ts`): gitignore matcher (globs, anchoring,
+  negation) + built-in binary/generated/vendored-dir exclusion (LOC-3).
+- **chunk** (`src/codeintel/chunk.ts`): overlapping line-range chunks for large
+  files (LOC-5).
+- **lexical** (`src/codeintel/lexical.ts`): camel/snake-aware tokenizer + inverted
+  index + BM25 — the keyword arm (catches exact identifiers embeddings blur).
+- **embeddings** (`src/codeintel/embeddings.ts`): `HashingEmbedder` + cosine +
+  `VectorIndex` with hash-gated re-embedding (LOC-6) — the semantic arm.
+- **symbols** (`src/codeintel/symbols.ts`): `HeuristicSymbolExtractor` for the
+  common TS/JS/Python declaration forms with approximate ranges.
+- **depgraph** (`src/codeintel/depgraph.ts`): import/require/from edges → undirected
+  graph; BFS `distance` + `proximityBoost` (relevant code clusters together).
+- **Localizer** (`src/codeintel/Localizer.ts`): pure `fuse()` — saturating-
+  normalized lexical + cosine + symbol + proximity → ranked candidates, overlap
+  dedupe, and the LOC-1 action: **use** (confident + unambiguous) / **widen**
+  (moderate or ambiguous) / **ask** (weak). Saturating (not max-relative) lexical
+  normalization prevents a single faint hit being inflated to false confidence.
+- **CodeIndex** (`src/codeintel/CodeIndex.ts`): orchestrator — chunk + index all
+  arms, build dependency seeds, assemble per-chunk signals, call `fuse`. Symbol-
+  tightening narrows a candidate to the matched symbol's range. `update`/`remove`
+  give incremental indexing (LOC-2).
+- **CodeIntelService** (`src/codeintel/CodeIntelService.ts`): vscode glue — lazy
+  workspace walk (`findFiles` + `.gitignore`, size/encoding guards LOC-4/5),
+  builds the index on first query, marks Lsp/TreeSitter degraded. Command
+  `conclave.localize`.
+
+Catalog handled: LOC-1, LOC-2, LOC-3, LOC-4, LOC-5, LOC-6.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

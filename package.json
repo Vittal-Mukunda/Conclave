@@ -62,6 +62,10 @@
       {
         "command": "conclave.initGit",
         "title": "conclave: Initialize Git Repository"
+      },
+      {
+        "command": "conclave.localize",
+        "title": "conclave: Localize Code for a Task"
       }
     ],
     "keybindings": [
