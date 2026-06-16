@@ -792,6 +792,49 @@ Catalog handled: STATE-1 (reload → resume from checkpoint), STATE-2 (crash →
 detect orphan + resume/discard), STATE-3 (two runs → coordinator prevents/queues).
 STATE-4/5/6 reinforced (corrupt-row skip, migration v7, per-workspace scope).
 
+## Phase 20 — UI / UX panel
+
+The sidebar becomes the live face of conclave: errors render as cards, the agent's
+activity streams, and connectivity / degraded state are always visible. Same
+discipline as the rest — a pure presenter + thin webview glue, no logic in the
+host.
+
+- **PanelViewModel** (`src/panel/PanelViewModel.ts`): pure, vscode-free
+  presenters turning domain state into render-ready view-models.
+  - `toErrorCard` (UX-1) — an `ErrorReport` (already redacted by `ErrorService`)
+    becomes a card with title/code/detail/cause + a **guaranteed ≥1** recovery
+    action. Wired to `ErrorService.onReport`, so EVERY report any subsystem emits
+    surfaces as a card with zero per-call-site work.
+  - `ActivityVM` (UX-2/3) — `idle | working | needs-input | error | done`, so the
+    UI never conflates "needs you" with "working" or "failed"; `working` carries a
+    Cancel affordance.
+  - `connectivityView` (UX-4) — offline / queued banner text; silent when online
+    and idle.
+  - `degradedView` — only the not-`full` capabilities, each with its consequence
+    + one-click restore (rendered behind the progressive-disclosure toggle, UX-6).
+  - `isSafePanelCommand` — the new trust boundary: a webview button carries a
+    command string, but the host runs it only if it matches `conclave.*`
+    (deny-by-default), so a buggy/compromised webview can never drive arbitrary
+    VS Code commands.
+- **ConclaveViewProvider**: gains `postError`/`postActivity`/`postConnectivity`/
+  `postDegraded` and an inbound `runAction` that validates via
+  `isSafePanelCommand` before `executeCommand`, or opens an `https?:` URL
+  externally. New DOM regions carry ARIA roles (`alert` for errors, `status`
+  aria-live for activity/connectivity) for UX-7; advanced status sits inside a
+  `<details>` (UX-6).
+- **AgentService** (UX-2): owns a `CancellationTokenSource` per run, passes it to
+  the loop as a `CancelSignal`, links the progress-notification Cancel to it, and
+  exposes `cancelCurrentCommand` (`conclave.cancelAgent`). It streams `ActivityVM`
+  to subscribers via `onActivity`. **AgentLoop** checks the signal at the top of
+  each iteration and hands off cleanly when cancelled (never acts).
+- **extension.ts**: subscribes `errors.onReport`, `agent.onActivity`,
+  `connectivity.onChange`, `degraded.onChange` → the provider, and pushes initial
+  connectivity + degraded snapshots. All non-blocking.
+
+Catalog handled: UX-1 (error cards), UX-2 (progress + cancel), UX-3 (distinct
+needs-input), UX-4 (offline banner + queued), UX-6 (progressive disclosure),
+UX-7 (ARIA + keyboard). UX-5 (first-run wizard) shipped in Phase 6.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

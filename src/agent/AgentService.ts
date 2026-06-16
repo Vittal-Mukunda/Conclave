@@ -11,6 +11,7 @@ import { AgentLoop } from './AgentLoop';
 import { AgentTask, BudgetGate, Checkpointer, PlanDecision, Planner, Verifier } from './types';
 import { RunStateStore } from './RunStateStore';
 import { RunCoordinator, RunRecord, findCrashedRuns } from './RunState';
+import { ActivityVM } from '../panel/PanelViewModel';
 
 // vscode glue for the agent loop. Wires the safety rails to real services:
 // checkpointer = Phase 8 EditService, verifier = Phase 9 VerifyService, budget
@@ -24,6 +25,8 @@ import { RunCoordinator, RunRecord, findCrashedRuns } from './RunState';
 export class AgentService {
   // STATE-3: one in-process coordinator gates concurrent runs per workspace.
   private readonly coordinator = new RunCoordinator();
+  // UX-2: the cancellation source for the run currently in progress, if any.
+  private cancelSource?: vscode.CancellationTokenSource;
 
   constructor(
     private readonly logger: Logger,
@@ -152,6 +155,11 @@ export class AgentService {
       heartbeatAt: started,
     });
 
+    // UX-2: a fresh cancellation source for this run, surfaced as a panel/notif
+    // Cancel button and checked each iteration by the loop.
+    const cancelSource = new vscode.CancellationTokenSource();
+    this.cancelSource = cancelSource;
+
     let iter = 0;
     const loop = new AgentLoop({
       planner: this.planner(),
@@ -162,34 +170,78 @@ export class AgentService {
         this.runStore?.heartbeat(runId, Date.now(), iter, ref);
       }),
       budget: this.budgetGate(),
+      signal: { isCancelled: () => cancelSource.token.isCancellationRequested },
     });
 
+    this.emitActivity({ kind: 'working', title: 'Agent running…', detail: goal, cancellable: true });
     try {
       const result = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: 'conclave: agent running…' },
-        () => loop.run({ goal }),
+        { location: vscode.ProgressLocation.Notification, title: 'conclave: agent running…', cancellable: true },
+        (_progress, token) => {
+          token.onCancellationRequested(() => cancelSource.cancel());
+          return loop.run({ goal });
+        },
       );
       this.runStore?.finish(runId, 'completed');
       this.logger.info('agent_done', { status: result.status, iterations: result.iterations.length, best: result.bestConfidence });
 
       const head = `conclave [${result.status}]: ${result.reason}`;
       if (result.status === 'needs-clarification' && result.question) {
+        this.emitActivity({ kind: 'needs-input', title: 'Needs your input', detail: result.question, cancellable: false });
         void vscode.window.showWarningMessage(`${head} — ${result.question}`);
       } else if (result.status === 'blocked') {
+        this.emitActivity({ kind: 'error', title: 'Blocked', detail: result.reason, cancellable: false });
         void vscode.window.showWarningMessage(
           result.scopedSuggestion ? `${head} Try: ${result.scopedSuggestion}` : head,
         );
       } else if (result.status === 'success') {
+        this.emitActivity({ kind: 'done', title: 'Done', detail: result.reason, cancellable: false });
         void vscode.window.showInformationMessage(`${head} (confidence ${Math.round(result.bestConfidence * 100)}%)`);
       } else {
+        this.emitActivity({ kind: 'done', title: result.status, detail: result.reason, cancellable: false });
         void vscode.window.showWarningMessage(head);
       }
     } catch (err) {
       // The run threw — leave it 'running' so it surfaces as recoverable, then rethrow.
+      this.emitActivity({ kind: 'error', title: 'Agent failed', detail: 'See the conclave output channel.', cancellable: false });
       this.logger.warn('agent_run_failed', { runId });
       throw err;
     } finally {
       this.coordinator.end(workspaceId, runId);
+      cancelSource.dispose();
+      if (this.cancelSource === cancelSource) {
+        this.cancelSource = undefined;
+      }
+    }
+  }
+
+  /** `conclave.cancelAgent` — cancel the run in progress (UX-2). No-op if idle. */
+  cancelCurrentCommand(): void {
+    if (this.cancelSource) {
+      this.cancelSource.cancel();
+      this.logger.info('agent_cancel_requested');
+      void vscode.window.showInformationMessage('conclave: cancelling the agent…');
+    } else {
+      void vscode.window.showInformationMessage('conclave: no agent run is in progress.');
+    }
+  }
+
+  // --- activity stream (UX-2/3): the panel subscribes to render live state ---
+
+  private readonly activityListeners = new Set<(vm: ActivityVM) => void>();
+
+  onActivity(listener: (vm: ActivityVM) => void): () => void {
+    this.activityListeners.add(listener);
+    return () => this.activityListeners.delete(listener);
+  }
+
+  private emitActivity(vm: ActivityVM): void {
+    for (const l of this.activityListeners) {
+      try {
+        l(vm);
+      } catch {
+        /* a listener must not break the run */
+      }
     }
   }
 

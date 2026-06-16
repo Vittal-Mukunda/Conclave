@@ -83,6 +83,14 @@ describe('AgentLoop', () => {
     expect(h.checkpoints).toHaveLength(1); // checkpointed before acting
   });
 
+  it('UX-2: a cancelled signal -> clean handoff before acting', async () => {
+    const h = harness({ verdicts: [{ passed: true, confidence: 0.9, flags: [] }] });
+    const r = await new AgentLoop({ ...h.deps, signal: { isCancelled: () => true } }).run(task);
+    expect(r.status).toBe('handoff');
+    expect(r.reason).toMatch(/cancelled/);
+    expect(h.acts).toBe(0); // never acted
+  });
+
   it('LOOP-5: ambiguous plan -> needs-clarification with one question', async () => {
     const h = harness({ plans: [{ kind: 'ambiguous', question: 'Which file?' }] });
     const r = await new AgentLoop(h.deps).run(task);

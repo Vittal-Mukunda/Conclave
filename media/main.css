@@ -144,3 +144,142 @@ button:focus-visible {
   opacity: 0.9;
   min-height: 1.2em;
 }
+
+/* UX-4: connectivity banner */
+.banner {
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.85em;
+}
+
+.banner-warn {
+  background: var(--vscode-inputValidation-warningBackground, rgba(204, 167, 0, 0.15));
+  border: 1px solid var(--vscode-inputValidation-warningBorder, rgba(204, 167, 0, 0.6));
+}
+
+.banner-info {
+  background: var(--vscode-inputValidation-infoBackground, rgba(0, 120, 212, 0.12));
+  border: 1px solid var(--vscode-inputValidation-infoBorder, rgba(0, 120, 212, 0.5));
+}
+
+/* UX-1: error card */
+.card {
+  border-radius: 4px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, rgba(190, 50, 50, 0.7));
+  background: var(--vscode-inputValidation-errorBackground, rgba(190, 50, 50, 0.1));
+}
+
+.card.severity-warning {
+  border-color: var(--vscode-inputValidation-warningBorder, rgba(204, 167, 0, 0.6));
+  background: var(--vscode-inputValidation-warningBackground, rgba(204, 167, 0, 0.1));
+}
+
+.card-title {
+  font-weight: 600;
+}
+
+.card-detail,
+.card-fallback {
+  margin: 0;
+  font-size: 0.9em;
+  opacity: 0.95;
+}
+
+.card-fallback {
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.card-cause pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8em;
+  margin: 4px 0 0;
+  opacity: 0.85;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* UX-2/3: agent activity, distinct per state */
+.activity {
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-left: 3px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.4));
+}
+
+.activity-title {
+  font-weight: 600;
+}
+
+.activity-detail {
+  margin: 0;
+  font-size: 0.9em;
+  opacity: 0.9;
+}
+
+.activity-working {
+  border-left-color: var(--vscode-progressBar-background, #0078d4);
+}
+
+.activity-needs-input {
+  border-left-color: var(--vscode-inputValidation-warningBorder, #cca700);
+  background: var(--vscode-inputValidation-warningBackground, rgba(204, 167, 0, 0.08));
+}
+
+.activity-error {
+  border-left-color: var(--vscode-inputValidation-errorBorder, #be3232);
+}
+
+.activity-done {
+  border-left-color: var(--vscode-testing-iconPassed, #3fb950);
+}
+
+/* progressive disclosure (UX-6) */
+#advanced summary {
+  cursor: pointer;
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.degraded-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.degraded-item {
+  font-size: 0.85em;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.degraded-item.state-unavailable .degraded-name {
+  color: var(--vscode-inputValidation-errorForeground, #f48771);
+}
+
+.degraded-consequence {
+  margin: 0;
+  opacity: 0.85;
+}
+
+.degraded-ok {
+  font-size: 0.85em;
+  opacity: 0.7;
+  margin: 6px 0 0;
+}

@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 19 COMPLETE
+## Status: Phase 20 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -27,9 +27,36 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 17 | Skills II: composition/injection | ✅ complete |
 | 18 | Skills III: security sandbox/marketplace | ✅ complete |
 | 19 | State, crash recovery & concurrency | ✅ complete |
-| 20 | UI / UX panel | ⬜ next |
-| 21 | Multi-account quota pooling | ⬜ |
+| 20 | UI / UX panel | ✅ complete |
+| 21 | Multi-account quota pooling | ⬜ next |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 20 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| UX-1: any error → a card (plain title + cause + ≥1 button), never a stack trace | `panelViewModel.test.ts` (`toErrorCard` maps actions; guarantees ≥1; carries fallback/retryAfter); `errors.onReport → provider.postError` wiring | ✅ |
+| UX-1: the card surfaces redacted detail/cause behind a disclosure; recovery buttons run commands/URLs | `ConclaveViewProvider.postError`; `media/main.js` `renderError` (Details + actions + Dismiss) | ✅ |
+| Recovery buttons can't drive arbitrary VS Code commands (deny-by-default) | `panelViewModel.test.ts` (`isSafePanelCommand`: conclave.* only; rejects workbench/malformed); `runRecoveryAction` validates before `executeCommand` | ✅ |
+| UX-2: long op shows live progress + Cancel; cancel stops the loop cleanly | `agentLoop.test.ts` (cancelled signal → handoff, never acts); `AgentService` (CancellationTokenSource → `signal`; withProgress `cancellable`; `cancelCurrentCommand`) | ✅ |
+| UX-3: needs-input is a distinct activity state from working/failed | `PanelViewModel` `ActivityKind` (idle/working/needs-input/error/done); `AgentService.emitActivity`; `main.js` per-state classes/styles | ✅ |
+| UX-4: offline → persistent banner + queued count; resumes on reconnect | `panelViewModel.test.ts` (`connectivityView`: offline message, singular/plural, resuming); `connectivity.onChange → postConnectivity` | ✅ |
+| Degraded capabilities shown honestly with one-click restore | `panelViewModel.test.ts` (`degradedView` surfaces only not-full + restore); `degraded.onChange → postDegraded` | ✅ |
+| UX-6: advanced/diagnostics behind progressive disclosure | `ConclaveViewProvider` (`<details id="advanced">` wraps degraded status) | ✅ |
+| UX-7: accessibility — ARIA roles + keyboard | error `role="alert"`, activity/connectivity `role="status"` aria-live; buttons aria-labelled + native focus; `:focus-visible` outline | ✅ |
+| Pure presenter is vscode-free + unit-tested; host only marshals over postMessage | `src/panel/PanelViewModel.ts` (no vscode import); `panelViewModel.test.ts` | ✅ |
+| Wired: errors/activity/connectivity/degraded streamed to the panel | `extension.ts` (onReport/onActivity/onChange subscriptions + initial snapshots) | ✅ |
+| Host activates + cancelAgent command registered | integration 20/20 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 446/446 |
+| `.vsix` packages | `npm run package` (614 KB, 15 files) | ✅ |
+
+**Notes:** UX-5 (first-run wizard) shipped in Phase 6 and is unchanged. The error
+card renders EVERY `ErrorService.report` (the funnel all subsystems already use),
+so UX-1 is global without per-call-site work; the most-recent card is shown and
+is dismissible. Cancellation is real end-to-end (token → loop `signal` → clean
+handoff); the panel Cancel button and the native progress-notification Cancel
+both drive the same source. Command execution from the webview is deny-by-default
+(`conclave.*` only) — the one new trust boundary this phase introduces.
 
 ## Phase 19 — acceptance gate (all met)
 

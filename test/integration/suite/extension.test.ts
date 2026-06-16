@@ -117,4 +117,9 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.recoverRun'), 'recoverRun not registered');
   });
+
+  it('registers the Phase 20 cancel-agent command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.cancelAgent'), 'cancelAgent not registered');
+  });
 });

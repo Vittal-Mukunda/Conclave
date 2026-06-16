@@ -2,6 +2,15 @@ import * as vscode from 'vscode';
 import { handleWebviewMessage } from './messaging';
 import { PanelHost } from './panel/PanelHost';
 import { OnboardingStatus } from './onboarding/OnboardingService';
+import { ErrorReport } from './errors/ErrorReport';
+import { CapabilityStatus } from './degraded/DegradedModeRegistry';
+import {
+  ActivityVM,
+  connectivityView,
+  degradedView,
+  isSafePanelCommand,
+  toErrorCard,
+} from './panel/PanelViewModel';
 
 /** Minimal onboarding view the host can supply to the webview banner. */
 export interface OnboardingProvider {
@@ -75,8 +84,28 @@ export class ConclaveViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  /** UX-1: push a redacted error card the webview renders with recovery buttons. */
+  public postError(report: ErrorReport): void {
+    void this.view?.webview.postMessage({ type: 'error', payload: toErrorCard(report) });
+  }
+
+  /** UX-2/3: push live agent activity (working / needs-input / error / done). */
+  public postActivity(vm: ActivityVM): void {
+    void this.view?.webview.postMessage({ type: 'activity', payload: vm });
+  }
+
+  /** UX-4: push the persistent connectivity banner state. */
+  public postConnectivity(online: boolean, queued: number): void {
+    void this.view?.webview.postMessage({ type: 'connectivity', payload: connectivityView(online, queued) });
+  }
+
+  /** Push the degraded-capability list (honest status with restore actions). */
+  public postDegraded(list: CapabilityStatus[]): void {
+    void this.view?.webview.postMessage({ type: 'degraded', payload: degradedView(list) });
+  }
+
   private async onMessage(webview: vscode.Webview, msg: unknown): Promise<void> {
-    const message = msg as { type?: string; payload?: { providerId?: string } };
+    const message = msg as { type?: string; payload?: { providerId?: string; command?: unknown; url?: unknown } };
     const providerId = message.payload?.providerId;
 
     // Ping/pong stays handled by the pure protocol.
@@ -116,8 +145,25 @@ export class ConclaveViewProvider implements vscode.WebviewViewProvider {
           void webview.postMessage({ type: 'testResult', payload: { providerId, ...result } });
         }
         break;
+      case 'runAction':
+        await this.runRecoveryAction(message.payload?.command, message.payload?.url);
+        break;
       default:
         break;
+    }
+  }
+
+  /**
+   * Execute a recovery-button action from the webview. A command is run only when
+   * it passes `isSafePanelCommand` (deny-by-default) so the webview can never
+   * drive arbitrary VS Code commands; a URL is opened externally.
+   */
+  private async runRecoveryAction(command: unknown, url: unknown): Promise<void> {
+    if (isSafePanelCommand(command)) {
+      await vscode.commands.executeCommand(command);
+    }
+    if (typeof url === 'string' && /^https?:\/\//.test(url)) {
+      await vscode.env.openExternal(vscode.Uri.parse(url));
     }
   }
 
@@ -149,9 +195,16 @@ export class ConclaveViewProvider implements vscode.WebviewViewProvider {
 <body>
   <main>
     <h1>conclave</h1>
+    <div id="connectivity" class="banner" role="status" aria-live="polite" hidden></div>
+    <section id="error" class="card" role="alert" aria-live="assertive" hidden></section>
+    <section id="activity" aria-label="Agent activity" role="status" aria-live="polite" hidden></section>
     <section id="onboarding" aria-label="Setup" hidden></section>
     <p class="tagline">Providers — add a free or paid key to get started.</p>
     <ul id="providers" aria-label="LLM providers"></ul>
+    <details id="advanced">
+      <summary>Status &amp; diagnostics</summary>
+      <section id="degraded" aria-label="Degraded capabilities"></section>
+    </details>
     <p id="status" role="status" aria-live="polite"></p>
   </main>
   <script nonce="${nonce}" src="${scriptUri}"></script>

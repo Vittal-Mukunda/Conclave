@@ -133,6 +133,12 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
       ),
       vscode.commands.registerCommand(
+        'conclave.cancelAgent',
+        guard(async () => {
+          services?.agent.cancelCurrentCommand();
+        }),
+      ),
+      vscode.commands.registerCommand(
         'conclave.estimateDifficulty',
         guard(async () => {
           await services?.router.estimateDifficultyCommand();
@@ -193,6 +199,20 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
       ),
     );
+
+    // Phase 20 — surface live state in the panel. Errors become cards (UX-1),
+    // agent activity streams (UX-2/3), connectivity + degraded state are pushed
+    // (UX-4 + honest status). All non-blocking.
+    const svc = services;
+    context.subscriptions.push(
+      { dispose: svc.errors.onReport((report) => provider.postError(report)) },
+      { dispose: svc.agent.onActivity((vm) => provider.postActivity(vm)) },
+      { dispose: svc.connectivity.onChange((online) => provider.postConnectivity(online, svc.connectivity.queuedCount)) },
+      { dispose: svc.degraded.onChange(() => provider.postDegraded(svc.degraded.list())) },
+    );
+    // Push initial connectivity + degraded snapshots once the view can receive them.
+    provider.postConnectivity(svc.connectivity.online, svc.connectivity.queuedCount);
+    provider.postDegraded(svc.degraded.list());
 
     services.connectivity.start();
     void services.connectivity.check();

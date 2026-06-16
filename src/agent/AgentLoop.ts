@@ -11,12 +11,20 @@ import {
   Verifier,
 } from './types';
 
+/** A user-cancellation source (UX-2). The host backs it with a VS Code
+ * CancellationToken; tests with a flag. Checked at the top of each iteration. */
+export interface CancelSignal {
+  isCancelled(): boolean;
+}
+
 export interface AgentDeps {
   planner: Planner;
   actor: Actor;
   verifier: Verifier;
   checkpointer: Checkpointer;
   budget: BudgetGate;
+  /** Optional — when present and tripped, the loop hands off cleanly (UX-2). */
+  signal?: CancelSignal;
 }
 
 /**
@@ -52,6 +60,11 @@ export class AgentLoop {
     let noProgress = 0;
 
     for (let n = 1; n <= this.cfg.maxIterations; n++) {
+      // UX-2: the user cancelled a long-running op -> stop cleanly before spending.
+      if (this.deps.signal?.isCancelled()) {
+        return this.finish('handoff', 'cancelled by user (UX-2)', best, iterations);
+      }
+
       // LOOP-7: stop before spending if the budget gate is closed.
       const gate = this.deps.budget.canContinue();
       if (!gate.allowed) {

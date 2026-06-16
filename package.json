@@ -126,6 +126,10 @@
       {
         "command": "conclave.recoverRun",
         "title": "conclave: Recover Interrupted Run"
+      },
+      {
+        "command": "conclave.cancelAgent",
+        "title": "conclave: Cancel Running Agent"
       }
     ],
     "keybindings": [
