@@ -138,6 +138,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.competence.recordFeedbackCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.planCouncil',
+        guard(async () => {
+          await services?.council.planCouncilCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

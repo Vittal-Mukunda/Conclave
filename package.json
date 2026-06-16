@@ -90,6 +90,10 @@
       {
         "command": "conclave.recordFeedback",
         "title": "conclave: Rate Last Model Selection"
+      },
+      {
+        "command": "conclave.planCouncil",
+        "title": "conclave: Assign Author & Review Council"
       }
     ],
     "keybindings": [

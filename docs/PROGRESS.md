@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 12 COMPLETE
+## Status: Phase 13 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -20,8 +20,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 10 | Agent loop | ✅ complete |
 | 11 | Difficulty estimator + cascade router | ✅ complete |
 | 12 | Competence learner (bandit) | ✅ complete |
-| 13 | Assignment solver + diverse council | ⬜ next |
-| 14 | Best-of-N + strong verifier-selector | ⬜ |
+| 13 | Assignment solver + diverse council | ✅ complete |
+| 14 | Best-of-N + strong verifier-selector | ⬜ next |
 | 15 | Security & privacy hardening | ⬜ |
 | 16 | Skills I: format/ingest/retrieval | ⬜ |
 | 17 | Skills II: composition/injection | ⬜ |
@@ -30,6 +30,32 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 13 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Greedy assignment maximises LCB competence | `assignmentSolver.test.ts` (convergent picks highest LCB) | ✅ |
+| Single-author enforced for convergent stages | `assignmentSolver.test.ts` (implement/mechanical → exactly one author) | ✅ |
+| Capacity constraint — a booked model is unavailable to the next stage | `assignmentSolver.test.ts` (cap=1 → 2nd stage takes next best) | ✅ |
+| Quality floor — no author below it | `assignmentSolver.test.ts` (floor 0.5 → no eligible author) | ✅ |
+| Stage kind routed by role (convergent vs divergent) | `assignmentSolver.test.ts` (plan/review=divergent, implement/mechanical=convergent) | ✅ |
+| Council only at divergent stages; ≥2 base FAMILIES (distinct lineages) | `councilBuilder.test.ts` (one model per family); `councilFamily.test.ts` | ✅ |
+| Prompt-strategy + temperature diversity across members | `councilBuilder.test.ts` (direct/CoT/test-first; temps 0.2/0.6/1.0) | ✅ |
+| DIVERSITY-PRUNING drops a member that won't raise Pass@K | `councilBuilder.test.ts` (non-competitive 2nd-of-family pruned; competitive kept) | ✅ |
+| NEVER a homogeneous council — single-family falls back to one author | `councilBuilder.test.ts` (1 family → homogeneous + fallback) | ✅ |
+| Synthesize with one strong model | `councilBuilder.test.ts` (synthesizer = top LCB) | ✅ |
+| Cross-provider same-lineage counts as one family (no echo chamber) | `councilFamily.test.ts` (two Llama providers → same family) | ✅ |
+| LinUCB exposes LCB (assign) vs UCB (explore) | `linucb.test.ts` (lcb=mean−width); `CompetenceLearner.evaluate` | ✅ |
+| Wired: router pool → learner LCB → solver; per-stage assignment | `CouncilService.assignForGoal` (plan/implement/review) | ✅ |
+| Host activates + planCouncil command registered | integration 13/13 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 301/301 |
+| `.vsix` packages | `npm run package` (591 KB, 15 files) | ✅ |
+
+**Note:** the optional exact-ILP comparison from OR design §6 is intentionally
+not shipped — greedy is near-optimal for this capacity-constrained, single-author
+structure and the ILP adds no quality at this scale. The `AssignmentSolver` seam
+allows slotting an exact solver later.
 
 ## Phase 12 — acceptance gate (all met)
 

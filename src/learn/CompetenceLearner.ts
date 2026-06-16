@@ -80,6 +80,17 @@ export class CompetenceLearner {
     return { chosen, scores };
   }
 
+  /** Conservative competence read for assignment: warm-starts an unseen arm,
+   *  then returns the LinUCB score (mean / ucb / lcb). The solver maximises lcb. */
+  evaluate(context: LearnContext, candidate: RoutedCandidate): { arm: string; mean: number; ucb: number; lcb: number } {
+    const arm = armId(candidate);
+    if (!this.bandit.has(arm)) {
+      this.bandit.warmStart(arm, this.priorFor(arm));
+    }
+    const s = this.bandit.score(arm, encode(context));
+    return { arm, mean: s.mean, ucb: s.ucb, lcb: s.lcb };
+  }
+
   /** Reward from the verification ladder (binary pass/fail). */
   recordLadder(context: LearnContext, candidate: RoutedCandidate, passed: boolean): void {
     this.reward(armId(candidate), context, passed ? 1 : 0, LADDER_WEIGHT);

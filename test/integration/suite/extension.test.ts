@@ -77,4 +77,9 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.recordFeedback'), 'recordFeedback not registered');
   });
+
+  it('registers the Phase 13 council command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.planCouncil'), 'planCouncil not registered');
+  });
 });

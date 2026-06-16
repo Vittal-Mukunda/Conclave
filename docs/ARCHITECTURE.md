@@ -483,6 +483,52 @@ the glue.
 Catalog handled: STATE-5 (v5 migration), STATE-6 (per-workspace arms), STATE-4
 (corrupt-row skip). No new IDs — this is an OR-brain layer, not a failure mode.
 
+## Phase 13 — Assignment solver + heterogeneous council
+
+Turns selection into a multi-stage *assignment* (OR design §6). The same two
+axes apply structurally: a **single author** writes convergent code; a **diverse
+council** handles divergent stages. Pure + unit-tested; `CouncilService` glues.
+
+- **types** (`src/council/types.ts`): `StageKind` (`stageKindFor` maps
+  implement/mechanical → convergent, plan/review → divergent), `ScoredCandidate`
+  (candidate + family + LCB), `CouncilMember` (+ prompt strategy + temperature),
+  `CouncilResult` / `AuthorResult`. `PROMPT_STRATEGIES` and the `TEMP_LOW..HIGH`
+  band drive member diversity.
+- **family** (`src/council/family.ts`): `familyOf` detects model lineage
+  (llama / gemini / deepseek / mistral / openai / anthropic / qwen / …) from the
+  id, falling back to provider. Two derivatives of one base family are NOT
+  diverse even across providers — that's what stops the council being an echo
+  chamber.
+- **CouncilBuilder** (`src/council/CouncilBuilder.ts`): seats the strongest model
+  per distinct family first, fills remaining seats by competence, then
+  **diversity-prunes** a redundant same-family member that trails the top by more
+  than `PRUNE_DELTA` (it won't raise oracle Pass@K). Refuses to form a council
+  with <2 families — falls back to a single author (NEVER a homogeneous vote) —
+  and names the top-LCB model as the **synthesizer**. Spreads prompt strategy +
+  temperature across seats.
+- **AssignmentSolver** (`src/council/AssignmentSolver.ts`): greedy assignment
+  maximising conservative **LCB** competence subject to per-model **capacity**
+  (live rate-limit slots), a **quality floor**, and **single-author** for
+  convergent stages. Stages fill in request order (scarce author first); capacity
+  is decremented so two stages can't double-book one model. (The optional exact
+  ILP from §6 is left as a future seam — greedy is near-optimal here.)
+- **LinUCB LCB** (`src/learn/LinUCB.ts`): `score` now also returns `lcb =
+  mean − width` — the bandit explores on UCB but the solver *assigns* on LCB, so a
+  seat goes to a model we conservatively trust. `CompetenceLearner.evaluate` /
+  `CompetenceService.evaluate` expose it.
+- **CouncilService** (`src/council/CouncilService.ts`): vscode glue. Routes the
+  candidate pool per stage (plan/implement/review), scores each via the learner's
+  LCB, and runs the solver. Command `conclave.planCouncil` shows the author +
+  council families for a goal.
+
+The convergent-single-author / divergent-diverse-council split is now enforced
+in one place, so later phases (best-of-N authoring, council synthesis) plug into
+a structurally correct assignment instead of re-deriving it.
+
+No new edge-case IDs — an OR-brain layer. Capacity ties back to the Phase 3
+scheduler limits; the council's heterogeneity requirement is the AVOID-rule from
+the build-plan ("homogeneous debate/consensus = echo chamber") made structural.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

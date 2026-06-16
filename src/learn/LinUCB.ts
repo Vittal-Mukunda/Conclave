@@ -19,8 +19,11 @@ export interface ArmScore {
   mean: number;
   /** alpha·sqrt(xᵀA⁻¹x) — the exploration bonus. */
   width: number;
-  /** mean + width. */
+  /** mean + width — optimism, used to EXPLORE (selection). */
   ucb: number;
+  /** mean − width — the conservative Lower Confidence Bound, used to ASSIGN
+   *  (the solver maximises LCB so a council only seats models we trust). */
+  lcb: number;
 }
 
 export interface LinUCBConfig {
@@ -79,7 +82,7 @@ export class LinUCB {
     const s = this.ensure(arm);
     const mean = dot(solve(s.A, s.b), x);
     const width = this.alpha * Math.sqrt(quadFormInv(s.A, x));
-    return { mean, width, ucb: mean + width };
+    return { mean, width, ucb: mean + width, lcb: mean - width };
   }
 
   /** Fold an observed reward in: A += x xᵀ, b += reward·x. `weight` repeats it. */

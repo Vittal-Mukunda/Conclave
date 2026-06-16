@@ -36,6 +36,7 @@ import { VerifyService } from '../verify/VerifyService';
 import { RouterService } from '../router/RouterService';
 import { BanditStore } from '../learn/BanditStore';
 import { CompetenceService } from '../learn/CompetenceService';
+import { CouncilService } from '../council/CouncilService';
 import { AgentService } from '../agent/AgentService';
 
 /**
@@ -58,6 +59,7 @@ export class Services implements vscode.Disposable {
   readonly verify: VerifyService;
   readonly router: RouterService;
   readonly competence: CompetenceService;
+  readonly council: CouncilService;
   readonly agent: AgentService;
   readonly repoMemory?: RepoMemory;
   readonly scheduler: Scheduler;
@@ -211,6 +213,10 @@ export class Services implements vscode.Disposable {
     // from benchmark priors, persisted in the bandit table, and updated strongly
     // from human ACCEPT/REJECT (lessons written to repo memory).
     this.competence = new CompetenceService(this.logger, this.capability, this.banditStore, this.repoMemory);
+    // Assignment solver + heterogeneous council (Phase 13): a single author for
+    // convergent stages, a diverse >=2-family council (diversity-pruned) for
+    // divergent ones, seated by the learner's conservative LCB competence.
+    this.council = new CouncilService(this.logger, this.router, this.competence);
     // Agent loop (Phase 10): control FSM wiring localize -> edit -> verify with
     // checkpoint/rollback + budget guards. The router (Phase 11) names the tier
     // and the learner (Phase 12) picks the model. Codegen brain deferred.

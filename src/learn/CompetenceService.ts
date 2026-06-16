@@ -60,6 +60,13 @@ export class CompetenceService {
     return result;
   }
 
+  /** Conservative competence (LCB/mean/UCB) for a candidate — used by the
+   *  Phase 13 assignment solver to seat councils. */
+  evaluate(context: LearnContext, candidate: RoutedCandidate): { arm: string; mean: number; ucb: number; lcb: number } {
+    this.ensureHydrated();
+    return this.learner.evaluate(context, candidate);
+  }
+
   /** Fold a verification-ladder outcome into the chosen arm. */
   recordLadder(context: LearnContext, candidate: RoutedCandidate, passed: boolean): void {
     this.ensureHydrated();
