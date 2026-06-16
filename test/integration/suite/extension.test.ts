@@ -101,4 +101,9 @@ describe('conclave extension', () => {
     assert.ok(commands.includes('conclave.refreshSkills'), 'refreshSkills not registered');
     assert.ok(commands.includes('conclave.findSkills'), 'findSkills not registered');
   });
+
+  it('registers the Phase 17 compose-skills command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.composeSkills'), 'composeSkills not registered');
+  });
 });

@@ -110,6 +110,10 @@
       {
         "command": "conclave.findSkills",
         "title": "conclave: Find Skills for a Task"
+      },
+      {
+        "command": "conclave.composeSkills",
+        "title": "conclave: Compose Skills per Sub-Agent"
       }
     ],
     "keybindings": [

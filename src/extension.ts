@@ -168,6 +168,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.skills.findSkillsCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.composeSkills',
+        guard(async () => {
+          await services?.skills.composeSkillsCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

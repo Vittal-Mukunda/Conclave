@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 16 COMPLETE
+## Status: Phase 17 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -24,12 +24,37 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 14 | Best-of-N + strong verifier-selector | ✅ complete |
 | 15 | Security & privacy hardening | ✅ complete |
 | 16 | Skills I: format/ingest/retrieval | ✅ complete |
-| 17 | Skills II: composition/injection | ⬜ next |
-| 18 | Skills III: security sandbox/marketplace | ⬜ |
+| 17 | Skills II: composition/injection | ✅ complete |
+| 18 | Skills III: security sandbox/marketplace | ⬜ next |
 | 19 | State, crash recovery & concurrency | ⬜ |
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 17 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Injection points: each sub-agent role receives only its categories; localizer/reviewer READ-ONLY | `skillsCompose.test.ts` (eligibleForRole; rolePolicy readOnly) | ✅ |
+| Skill categorisation: metadata.category wins, else keyword heuristic, else general | `skillsCompose.test.ts` (declared / heuristic / general) | ✅ |
+| Precedence: user/session > project > vetted > community | `skillsCompose.test.ts` (byPrecedence order; community can't outrank) | ✅ |
+| Within a tier: glob/role-specific > general; newer version breaks ties | `skillsCompose.test.ts` (specific>general; compareVersion; version tiebreak) | ✅ |
+| Compose: layered, delimited, source-tagged blocks in precedence order | `skillsCompose.test.ts` (project block first; `<skill name=… trust=…>`) | ✅ |
+| Role filtering: ineligible skills excluded | `skillsCompose.test.ts` (editor↔reviewer split) | ✅ |
+| SKILL-4: execution-directive conflict → highest-precedence value wins + surfaced to planner; never silently merged | `skillsCompose.test.ts` (test_command: project beats community; SkillConflict winner/losers) | ✅ |
+| Agreeing directives raise no conflict | `skillsCompose.test.ts` (same test_command → 0 conflicts) | ✅ |
+| metadata.requires dependencies resolved from the installed index; missing → graceful note | `skillsCompose.test.ts` (dependencies; missingDependencies) | ✅ |
+| Forged closing delimiter in a body defanged (no breakout) | `skillsCompose.test.ts` (`</skill>` → `<\/skill>`) | ✅ |
+| Wired: SkillsService.composeForAgent + per-role preview command | `SkillsService` (composer); command `conclave.composeSkills` | ✅ |
+| Host activates + composeSkills command registered | integration 17/17 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 386/386 |
+| `.vsix` packages | `npm run package` (604 KB, 15 files) | ✅ |
+
+**Notes:** composition output (`ComposedContext`) is the seam the agent's
+sub-agents inject at once codegen lands — same deferred-brain pattern as the
+loop/council/best-of-N engines. The script sandbox, the `allowed-tools` hard
+ceiling, the static + supply-chain scan, and the real marketplace/git fetch
+(SKILL-2/3/7/9) are Phase 18.
 
 ## Phase 16 — acceptance gate (all met)
 

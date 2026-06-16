@@ -6,8 +6,9 @@ import { ConclaveError } from '../errors/ErrorReport';
 import { Capability, DegradedModeRegistry } from '../degraded/DegradedModeRegistry';
 import { ingestSkill } from './ingest';
 import { SkillRetriever, RetrievalResult, RetrievalInput } from './Retriever';
+import { SkillComposer } from './Composer';
 import { SkillStore } from './SkillStore';
-import { Skill, SkillFolderInput, SourceType, TrustTier } from './types';
+import { ComposedContext, Skill, SkillFolderInput, SourceType, SubAgentRole, TrustTier } from './types';
 
 // vscode glue for the Skills subsystem (Phase 16: format / ingest / retrieval).
 // Scans the local skill roots (.conclave/skills = project, ~/.conclave/skills =
@@ -31,6 +32,7 @@ export interface RemoteSkillSource {
 
 export class SkillsService {
   private readonly retriever = new SkillRetriever();
+  private readonly composer: SkillComposer;
   private skills: Skill[] = [];
 
   constructor(
@@ -40,6 +42,7 @@ export class SkillsService {
     private readonly store?: SkillStore,
     private readonly remote?: RemoteSkillSource,
   ) {
+    this.composer = new SkillComposer(logger);
     // Hydrate from the cached index so retrieval works before the first scan.
     if (this.store) {
       try {
@@ -58,6 +61,17 @@ export class SkillsService {
   /** Retrieve the skill(s) to activate for a task (description is primary). */
   retrieve(input: RetrievalInput): RetrievalResult {
     return this.retriever.retrieve(this.skills, input);
+  }
+
+  /**
+   * Retrieve + compose the skills to inject into a sub-agent role
+   * (localizer/planner/editor/verifier/reviewer). Returns the layered,
+   * source-tagged, precedence-ordered context with resolved directives and any
+   * conflicts to surface to the planner (SKILL-4). Phase 17.
+   */
+  composeForAgent(role: SubAgentRole, input: RetrievalInput): ComposedContext {
+    const active = this.retriever.retrieve(this.skills, input).active;
+    return this.composer.compose(active, role, this.skills);
   }
 
   /**
@@ -171,6 +185,39 @@ export class SkillsService {
     const note = overflow.length ? ` (+${overflow.length} eligible dropped by cap/budget — SKILL-5)` : '';
     void vscode.window.showInformationMessage(
       `conclave: activating ${result.active.map((s) => s.name).join(', ')}${note}.`,
+    );
+  }
+
+  /** `conclave.composeSkills` — preview the per-role injected skill context. */
+  async composeSkillsCommand(): Promise<void> {
+    if (!this.skills.length) {
+      await this.refresh();
+    }
+    const taskText = await vscode.window.showInputBox({
+      title: 'conclave — compose skills',
+      prompt: 'Describe the task; conclave layers the matching skills per sub-agent role.',
+      ignoreFocusOut: true,
+    });
+    if (!taskText) {
+      return;
+    }
+    const roles: SubAgentRole[] = ['localizer', 'planner', 'editor', 'verifier', 'reviewer'];
+    const parts: string[] = [];
+    let totalConflicts = 0;
+    for (const role of roles) {
+      const c = this.composeForAgent(role, { taskText });
+      if (c.blocks.length) {
+        const names = c.blocks.map((b) => b.name).join(', ');
+        const dirs = Object.keys(c.directives).length ? ` directives={${Object.keys(c.directives).join(',')}}` : '';
+        const conf = c.conflicts.length ? ` ⚠${c.conflicts.length}` : '';
+        parts.push(`${role}[${names}]${dirs}${conf}`);
+        totalConflicts += c.conflicts.length;
+      }
+    }
+    void vscode.window.showInformationMessage(
+      parts.length
+        ? `conclave skills — ${parts.join(' | ')}${totalConflicts ? ` (${totalConflicts} conflict(s) surfaced to planner — SKILL-4)` : ''}`
+        : 'conclave: no skills matched this task for any sub-agent role.',
     );
   }
 

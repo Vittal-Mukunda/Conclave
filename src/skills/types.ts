@@ -85,3 +85,70 @@ export interface SkillLockEntry {
   sourceType: SourceType;
   computedHash: string;
 }
+
+// ---- Phase 17: composition + injection ----
+
+/** Sub-agent injection points (docs/skills-spec.md). Each is context-isolated. */
+export type SubAgentRole = 'localizer' | 'planner' | 'editor' | 'verifier' | 'reviewer';
+
+/** Skill category — drives which sub-agent role(s) a skill is injected into. */
+export type SkillCategory =
+  | 'repo-map'
+  | 'architecture'
+  | 'domain-workflow'
+  | 'plan-critique'
+  | 'convention'
+  | 'style'
+  | 'framework'
+  | 'commit-message'
+  | 'test'
+  | 'build'
+  | 'deploy'
+  | 'reproduction'
+  | 'security-audit'
+  | 'code-review'
+  | 'general';
+
+/** One composed, source-tagged skill block in the layered context. */
+export interface ComposedBlock {
+  name: string;
+  trust: TrustTier;
+  source: string;
+  /** The delimited, data-fenced block text injected into the sub-agent. */
+  text: string;
+}
+
+export type ConflictKind = 'directive' | 'shadowed';
+
+/** A composition conflict surfaced to the planner (SKILL-4) — never silently merged. */
+export interface SkillConflict {
+  kind: ConflictKind;
+  /** The contested key (e.g. `test_command`) or skill concern. */
+  key: string;
+  /** The winning skill name (highest precedence). */
+  winner: string;
+  /** Shadowed skill names. */
+  losers: string[];
+  reason: string;
+}
+
+/** The result of composing the active skills for one sub-agent role. */
+export interface ComposedContext {
+  role: SubAgentRole;
+  /** Ordered highest-precedence first. */
+  blocks: ComposedBlock[];
+  /** The full layered text (all blocks concatenated), ready to inject. */
+  text: string;
+  /** Winning execution-affecting directives (build/test/deploy/run commands). */
+  directives: Record<string, string>;
+  /** Conflicts to surface to the planner (SKILL-4). */
+  conflicts: SkillConflict[];
+  /** Skills pulled in to satisfy `metadata.requires`. */
+  dependencies: string[];
+  /** Required skills that are not installed (graceful note). */
+  missingDependencies: string[];
+  /** Role policy: localizer/reviewer are read-only ("report, don't modify"). */
+  readOnly: boolean;
+  /** Whether permitted skills may run scripts in this role (off until Phase 18). */
+  scriptsAllowed: boolean;
+}

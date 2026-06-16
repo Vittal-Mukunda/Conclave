@@ -661,6 +661,47 @@ unreachable → degrade to local + retry), SKILL-8 (missing referenced file →
 graceful skip + note), plus STATE-5 (migration v6). SKILL-2/3/7/9 (security
 scan + script sandbox) are Phase 18; SKILL-4 (conflict precedence) is Phase 17.
 
+## Phase 17 — Skills II: composition + injection
+
+The middle third of the Skills subsystem (docs/skills-spec.md "COMPOSITION +
+CONFLICT RESOLUTION" + "INJECTION POINTS"). Turns the retrieved active skills
+into a layered, source-tagged, precedence-ordered context per sub-agent role,
+resolving dependencies + conflicts deterministically. All pure + unit-tested;
+`SkillsService` exposes `composeForAgent` and a preview command.
+
+- **roles** (`src/skills/roles.ts`): `categoryOf` classifies a skill (from
+  `metadata.category` when declared, else a keyword heuristic) into a
+  `SkillCategory`. `rolePolicy` + `eligibleForRole` encode the injection points:
+  localizer←repo-map; planner←architecture/domain-workflow/plan-critique;
+  editor←convention/style/framework/commit-message; verifier←test/build/deploy/
+  reproduction; reviewer←security-audit/code-review. `general` is admitted
+  everywhere. **localizer + reviewer are READ-ONLY** ("report, don't modify");
+  scripts stay off in every role until the Phase 18 sandbox.
+- **precedence** (`src/skills/precedence.ts`): the total order from the spec —
+  user/session > project > vetted > community; within a tier glob/role-specific
+  beats general; newer `metadata.version` breaks remaining ties; name for
+  stability. `comparePrecedence`/`byPrecedence` — community can NEVER outrank
+  user/project.
+- **SkillComposer** (`src/skills/Composer.ts`): filters active skills to those
+  eligible for the role, resolves `metadata.requires` dependencies (transitive,
+  from the installed index; a missing dep is a graceful note), layers them in
+  precedence order as delimited `<skill …>` DATA blocks (forged closing
+  delimiters defanged), and resolves execution-affecting directives
+  (`test/build/deploy/run/lint_command`) to the **highest-precedence value** —
+  surfacing every override as a `SkillConflict` to the planner (SKILL-4), never
+  silently merging. Duplicate skills from multiple sources are surfaced too.
+- **SkillsService** (`src/skills/SkillsService.ts`): `composeForAgent(role,
+  input)` retrieves (Phase 16) then composes; command `conclave.composeSkills`
+  previews the per-role layering + conflict count. The composed context is the
+  seam the agent's sub-agents inject at when codegen lands (same deferred-brain
+  pattern as the loop/council/best-of-N engines).
+
+Catalog handled: SKILL-4 (skill conflict → deterministic precedence + reason
+surfaced to planner). The fork-style context isolation + summary-return and the
+always-on-conventions-vs-task-skills split are realised structurally by the
+per-role `ComposedContext`; the script sandbox + `allowed-tools` enforcement +
+marketplace are Phase 18.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:
