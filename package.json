@@ -38,6 +38,14 @@
       {
         "command": "conclave.openPanel",
         "title": "conclave: Open Panel"
+      },
+      {
+        "command": "conclave.reportIssue",
+        "title": "conclave: Report Issue / Show Logs"
+      },
+      {
+        "command": "conclave.checkConnectivity",
+        "title": "conclave: Check Connectivity"
       }
     ],
     "keybindings": [

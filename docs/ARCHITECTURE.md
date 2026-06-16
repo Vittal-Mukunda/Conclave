@@ -30,6 +30,38 @@ VS Code Extension Host (Node, TypeScript)
   `ping -> pong`. The provider owns the `vscode` wiring; the protocol owns the logic. This split is
   the pattern for every later feature: testable logic in vscode-free modules, thin vscode glue.
 
+## Phase 1 — Error & Resilience Framework
+
+The safety net every later feature plugs into. Core is `vscode`-free and unit-tested; `Services`
+is the thin glue that wires it to the host.
+
+- **Taxonomy** (`src/errors/taxonomy.ts`): `ErrorCategory` (mirrors edge-cases.md groups) +
+  `ErrorSeverity`; `titleForCategory` (plain titles) + `heuristicCategory` (guess for plain Errors).
+- **ErrorReport / ConclaveError** (`src/errors/ErrorReport.ts`): the report shape + `RecoveryAction`
+  (always >= 1) + the typed error all subsystems throw. `REPORT_ISSUE_ACTION` is the universal
+  fallback action.
+- **ErrorService** (`src/errors/ErrorService.ts`): funnels ANY caught value (typed/Error/string/
+  object/null) into a valid, redacted ErrorReport with >= 1 action. Never throws — even an internal
+  failure yields a fatal report. Emits to subscribers; logs via Logger.
+- **Secret redaction** (`src/logging/redaction.ts`): `SecretRedactor` with (1) a registry of
+  known-live secrets removed by exact substring, and (2) shape patterns (sk-/AIza/ghp_/gsk_/Bearer/
+  key=value). MANDATORY before any log / provider send / report / UI surface. This is the SEC-4
+  invariant's enforcement point.
+- **Logger** (`src/logging/Logger.ts`): structured JSON lines, redacted before reaching the sink.
+- **DegradedModeRegistry** (`src/degraded/DegradedModeRegistry.ts`): per-capability
+  full|degraded|unavailable + consequence + restore action; emits on real transitions. The router
+  and UI read this. `degraded` ≠ unusable; only `unavailable` blocks.
+- **ConnectivityMonitor** (`src/connectivity/ConnectivityMonitor.ts`): online/offline via an
+  injected probe; `enqueue` holds actions while offline and auto-drains FIFO on reconnect (UX-4).
+- **globalCapture** (`src/errors/globalCapture.ts`): process `unhandledRejection`/`uncaughtException`
+  -> fatal ErrorReport, never rethrown — no VS Code crash dialog.
+- **Services** (`src/core/Services.ts`): builds all of the above, wires the OutputChannel sink, the
+  DNS network probe, network-state -> degraded-mode bridge, and surfaces fatal reports as a
+  notification (rich card comes in Phase 20). `extension.ts` wraps every entry point in `guard()`.
+
+Catalog entries handled: **UX-1** (any error -> actionable report), **UX-4** (offline + queued
+resume), **SEC-4** (no secret in logs/reports).
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

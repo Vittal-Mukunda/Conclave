@@ -3,13 +3,13 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 0 COMPLETE
+## Status: Phase 1 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
 | 0 | Foundation & extension skeleton | ✅ complete |
-| 1 | Error & Resilience Framework | ⬜ next |
-| 2 | Provider abstraction + key storage | ⬜ |
+| 1 | Error & Resilience Framework | ✅ complete |
+| 2 | Provider abstraction + key storage | ⬜ next |
 | 3 | Rate-limit-aware scheduler | ⬜ |
 | 4 | Capability & quota registry + cost meter | ⬜ |
 | 5 | Shadow-price engine + budget/spend control | ⬜ |
@@ -30,6 +30,21 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 1 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Arbitrary/unknown thrown error -> valid ErrorReport w/ action (UX-1) | `errorService.test.ts` (Error, string, object, number, null, undefined) | ✅ |
+| Typed ConclaveError preserved (code/category/retry/actions) | `errorService.test.ts` | ✅ |
+| Fatal always carries "Report issue" | `errorService.test.ts` | ✅ |
+| unhandledRejection / uncaughtException captured, no crash | `globalCapture.test.ts` | ✅ |
+| Offline detected + queued action resumes (UX-4) | `connectivity.test.ts` | ✅ |
+| Secret in a log/report is redacted, no key substring (SEC-4) | `redaction.test.ts`, `errorService.test.ts` | ✅ |
+| Degraded-mode transition exposes consequence + restore action | `degraded.test.ts` | ✅ |
+| Host still activates with full wiring | integration suite (5/5) in VS Code 1.124.2 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 28/28 |
+| `.vsix` still packages | `npm run package` (11.6 KB) | ✅ |
 
 ## Phase 0 — acceptance gate (all met)
 

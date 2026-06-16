@@ -22,4 +22,14 @@ describe('conclave extension', () => {
   it('executes conclave.openPanel without throwing', async () => {
     await vscode.commands.executeCommand('conclave.openPanel');
   });
+
+  it('registers the Phase 1 resilience commands', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.reportIssue'), 'reportIssue not registered');
+    assert.ok(commands.includes('conclave.checkConnectivity'), 'checkConnectivity not registered');
+  });
+
+  it('checkConnectivity executes without throwing', async () => {
+    await vscode.commands.executeCommand('conclave.checkConnectivity');
+  });
 });
