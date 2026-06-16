@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 7 COMPLETE
+## Status: Phase 8 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -15,8 +15,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 5 | Shadow-price engine + budget/spend control | ✅ complete |
 | 6 | Onboarding wizard & first-run | ✅ complete |
 | 7 | Code intelligence + localization | ✅ complete |
-| 8 | Editing + git checkpoints + repo memory | ⬜ next |
-| 9 | Verification ladder + sandbox | ⬜ |
+| 8 | Editing + git checkpoints + repo memory | ✅ complete |
+| 9 | Verification ladder + sandbox | ⬜ next |
 | 10 | Agent loop | ⬜ |
 | 11 | Difficulty estimator + cascade router | ⬜ |
 | 12 | Competence learner (bandit) | ⬜ |
@@ -30,6 +30,26 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 8 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| EDIT-1: drift -> fail+regenerate, never force | `atomicEditor.test.ts` (base-hash drift -> EDIT-1), `editPatch.test.ts` (context mismatch -> drift) | ✅ |
+| EDIT-2: edit outside workspace -> BLOCK | `atomicEditor.test.ts` (outside predicate -> EDIT-2); `EditService.isInsideWorkspace` | ✅ |
+| EDIT-3: dirty tree -> auto-checkpoint user work FIRST | `checkpointManager.test.ts` (dirty -> commitAll "user work", capturedDirty) | ✅ |
+| EDIT-4: conflict markers -> refuse; never clobber | `atomicEditor.test.ts` + `editPatch.test.ts` (hasConflictMarkers) | ✅ |
+| EDIT-5: git op fails -> retry; else typed ErrorReport | `checkpointManager.test.ts` (retry succeeds; exhausted -> EDIT-5) | ✅ |
+| EDIT-6: unsaved buffers -> reconcile | `atomicEditor.test.ts` (bufferDirty -> reconciled); `EditService.applyPlan` saves first | ✅ |
+| EDIT-7: rollback/partial -> ATOMIC (all-or-nothing) | `atomicEditor.test.ts` (one failure -> zero writes); `checkpointManager.test.ts` (rollback resetHard) | ✅ |
+| EDIT-8: user edits mid-run -> re-sync; no overwrite | `editPatch.test.ts` (anchor re-sync within window) | ✅ |
+| EDIT-9: missing target / write fail -> ErrorReport; no corruption | `atomicEditor.test.ts` (missing -> EDIT-9); `EditService` rolls back on write error | ✅ |
+| VER-6: remember test command in repo memory (ask once) | `repoMemory.test.ts`; `conclave.rememberTestCommand` | ✅ |
+| STATE-6: repo memory scoped per workspace | `repoMemory.test.ts` (WS_A/WS_B isolation) | ✅ |
+| STATE-5: migration v4 (repo_memory) preserves prior rows | `repoMemory.test.ts` (latestVersion=4, all migrations applied) | ✅ |
+| Host activates + Phase 8 commands registered | integration 8/8 (checkpoint, rememberTestCommand) | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 198/198 |
+| `.vsix` packages | `npm run package` (577 KB, 15 files) | ✅ |
 
 ## Phase 7 — acceptance gate (all met)
 

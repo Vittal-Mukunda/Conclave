@@ -45,4 +45,13 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.localize'), 'localize not registered');
   });
+
+  it('registers the Phase 8 editing commands', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.checkpoint'), 'checkpoint not registered');
+    assert.ok(
+      commands.includes('conclave.rememberTestCommand'),
+      'rememberTestCommand not registered',
+    );
+  });
 });

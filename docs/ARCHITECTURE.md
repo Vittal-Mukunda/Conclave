@@ -265,6 +265,53 @@ feeds it files.
 
 Catalog handled: LOC-1, LOC-2, LOC-3, LOC-4, LOC-5, LOC-6.
 
+## Phase 8 — Editing + git checkpoints + repo memory
+
+The write path. Localization (Phase 7) says *where*; this layer changes it
+*safely*. The guiding rule is **never clobber, never leave the tree partial**:
+all edit validation is pure + all-or-nothing, and every apply is fenced by a git
+checkpoint so any failure rolls back cleanly.
+
+- **types** (`src/editing/types.ts`): `Hunk` (line-anchored region) / `FileEdit`
+  (whole-content or hunks + `baseHash`) / `EditPlan` / `FileState` / `EditResult`
+  + the `GitOps` interface (the minimal git surface the checkpoint logic needs).
+- **hash** (`src/editing/hash.ts`): FNV-1a + length tag — the drift fingerprint
+  (EDIT-1), same hash idiom as the codeintel embedder.
+- **patch** (`src/editing/patch.ts`): pure anchored hunk applier. Applies
+  bottom-to-top so earlier edits don't shift later line numbers; verifies each
+  hunk's `oldLines` sit at its anchor, **re-syncing** within a small window when
+  the user inserted/removed lines above (EDIT-8); reports drift instead of
+  forcing when context no longer matches (EDIT-1). Also `hasConflictMarkers`
+  (EDIT-4) and EOL preservation.
+- **AtomicEditor** (`src/editing/AtomicEditor.ts`): pure planner. Validates every
+  edit — workspace boundary (EDIT-2), base-hash drift (EDIT-1), hunk apply
+  (EDIT-1/8), pre-existing conflict markers (EDIT-4), missing target (EDIT-9) —
+  and emits a complete write set **only if all pass** (EDIT-7); a single failure
+  yields zero writes. Surfaces a `reconciled` list for dirty buffers (EDIT-6).
+- **CheckpointManager** (`src/editing/CheckpointManager.ts`): pure orchestration
+  over `GitOps`. `before()` commits the user's uncommitted work first when the
+  tree is dirty (EDIT-3) so a rollback can never lose it; clean trees checkpoint
+  at HEAD. `rollback()` hard-resets (EDIT-7). Every git op gets one retry, then a
+  typed `EDIT-5` error the host maps to an ErrorReport.
+- **RepoMemory** (`src/editing/RepoMemory.ts`): per-workspace key/value facts
+  (test/build command) in the `repo_memory` table (migration v4), scoped by
+  workspace id (STATE-6) so settings never leak across repos; survives reloads so
+  conclave asks once (VER-6).
+- **GitCli** (`src/editing/GitCli.ts`): `GitOps` via the real `git` CLI
+  (`--no-verify` checkpoints, porcelain status). Thin IO; all policy is in the
+  unit-tested CheckpointManager.
+- **EditService** (`src/editing/EditService.ts`): vscode glue. Reads current file
+  state preferring open (unsaved) buffers over disk (EDIT-6/8), enforces the
+  boundary from `workspaceFolders` (EDIT-2), checkpoints before applying, writes
+  via `workspace.fs`, and rolls back to the checkpoint if a write fails midway
+  (EDIT-9 -> EDIT-7). Commands `conclave.checkpoint` + `conclave.rememberTestCommand`.
+
+RepoMemory needs storage; absent it, editing and checkpoints still work (just no
+remembered facts), mirroring the Phase 4 degrade-don't-crash posture.
+
+Catalog handled: EDIT-1, EDIT-2, EDIT-3, EDIT-4, EDIT-5, EDIT-6, EDIT-7, EDIT-8,
+EDIT-9, VER-6, STATE-6 (and STATE-5 via migration v4).
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

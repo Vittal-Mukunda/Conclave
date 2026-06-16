@@ -89,6 +89,23 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 4,
+    // Phase 8: per-workspace repo memory (test/build command and other learned
+    // facts). Scoped by workspace_id so settings never leak across repos
+    // (STATE-6); survives reloads so conclave doesn't re-ask (VER-6).
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS repo_memory (
+          workspace_id TEXT NOT NULL,
+          key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          updated_at INTEGER DEFAULT 0,
+          PRIMARY KEY (workspace_id, key)
+        );
+      `);
+    },
+  },
 ];
 
 export function latestVersion(): number {

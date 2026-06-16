@@ -30,6 +30,8 @@ import { BudgetManager } from '../cost/BudgetManager';
 import { CostPolicy } from '../cost/CostPolicy';
 import { OnboardingHost } from '../onboarding/OnboardingHost';
 import { CodeIntelService } from '../codeintel/CodeIntelService';
+import { RepoMemory } from '../editing/RepoMemory';
+import { EditService } from '../editing/EditService';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -47,6 +49,8 @@ export class Services implements vscode.Disposable {
   readonly keyManager: KeyManager;
   readonly onboarding: OnboardingHost;
   readonly codeIntel: CodeIntelService;
+  readonly editing: EditService;
+  readonly repoMemory?: RepoMemory;
   readonly scheduler: Scheduler;
   readonly storage?: Storage;
   readonly capability?: CapabilityRegistry;
@@ -135,6 +139,7 @@ export class Services implements vscode.Disposable {
       this.capability.seed(registry.list());
       this.telemetry = new TelemetryStore(this.storage.db);
       this.budget = new BudgetManager(this.storage.db);
+      this.repoMemory = new RepoMemory(this.storage.db);
       this.logger.info('storage_ready', { version: this.storage.version });
     } catch (err) {
       this.degraded.set(Capability.Storage, 'unavailable', {
@@ -180,6 +185,9 @@ export class Services implements vscode.Disposable {
     this.onboarding = new OnboardingHost(context, this.providers, this.keyManager, this.errors);
     // Code intelligence / localization (Phase 7). Indexed lazily on first query.
     this.codeIntel = new CodeIntelService(this.degraded, this.logger);
+    // Editing + git checkpoints + repo memory (Phase 8). Repo memory needs
+    // storage; absent it, editing/checkpoints still work (just no remembered facts).
+    this.editing = new EditService(this.logger, this.errors, this.repoMemory);
 
     // Live capacity probing: startup pass + hourly, only for keyed providers.
     if (capability) {

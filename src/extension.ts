@@ -102,6 +102,18 @@ export function activate(context: vscode.ExtensionContext): void {
           void vscode.window.showInformationMessage(`conclave: ${summary}`);
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.checkpoint',
+        guard(async () => {
+          await services?.editing.runCheckpointCommand();
+        }),
+      ),
+      vscode.commands.registerCommand(
+        'conclave.rememberTestCommand',
+        guard(async () => {
+          await services?.editing.rememberTestCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

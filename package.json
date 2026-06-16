@@ -66,6 +66,14 @@
       {
         "command": "conclave.localize",
         "title": "conclave: Localize Code for a Task"
+      },
+      {
+        "command": "conclave.checkpoint",
+        "title": "conclave: Checkpoint Working Tree"
+      },
+      {
+        "command": "conclave.rememberTestCommand",
+        "title": "conclave: Remember Test Command"
       }
     ],
     "keybindings": [
