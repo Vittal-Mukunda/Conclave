@@ -54,6 +54,14 @@
       {
         "command": "conclave.setBudget",
         "title": "conclave: Cost Mode & Spend Cap"
+      },
+      {
+        "command": "conclave.startOnboarding",
+        "title": "conclave: Setup Wizard"
+      },
+      {
+        "command": "conclave.initGit",
+        "title": "conclave: Initialize Git Repository"
       }
     ],
     "keybindings": [

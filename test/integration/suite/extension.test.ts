@@ -33,4 +33,11 @@ describe('conclave extension', () => {
   it('checkConnectivity executes without throwing', async () => {
     await vscode.commands.executeCommand('conclave.checkConnectivity');
   });
+
+  it('registers the Phase 5/6 commands', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.setBudget'), 'setBudget not registered');
+    assert.ok(commands.includes('conclave.startOnboarding'), 'startOnboarding not registered');
+    assert.ok(commands.includes('conclave.initGit'), 'initGit not registered');
+  });
 });

@@ -13,7 +13,11 @@ export function activate(context: vscode.ExtensionContext): void {
     services = new Services(context);
     context.subscriptions.push(services);
 
-    const provider = new ConclaveViewProvider(context.extensionUri, services.keyManager);
+    const provider = new ConclaveViewProvider(
+      context.extensionUri,
+      services.keyManager,
+      services.onboarding,
+    );
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(ConclaveViewProvider.viewType, provider),
     );
@@ -59,10 +63,33 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.manageBudget();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.startOnboarding',
+        guard(async () => {
+          await services?.onboarding.run(async () => {
+            await provider.postProviders();
+            await provider.postOnboarding();
+          });
+          await provider.postOnboarding();
+        }),
+      ),
+      vscode.commands.registerCommand(
+        'conclave.initGit',
+        guard(async () => {
+          await services?.onboarding.initGit();
+          await provider.postOnboarding();
+        }),
+      ),
     );
 
     services.connectivity.start();
     void services.connectivity.check();
+
+    // First-run nudge — non-blocking; the wizard opens only on user action.
+    void services.onboarding.notifyIfIncomplete(async () => {
+      await provider.postProviders();
+      await provider.postOnboarding();
+    });
   } catch (err) {
     // Activation itself must not crash the host.
     const svc = services?.errors ?? new ErrorService({ redactor: new SecretRedactor() });

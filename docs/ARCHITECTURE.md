@@ -189,6 +189,33 @@ All math is pure + deterministic; persistence reuses the `SqlDb` from Phase 4.
 Catalog handled: COST-1/2/3/4 (COST-5 was Phase 4), STATE-5. Invariant enforced: spend cap
 never exceeded.
 
+## Phase 6 — Onboarding wizard & first-run
+
+Turns a cold install into a runnable one: detects what is missing, guides the user
+through it, and refuses to pretend conclave is ready when it isn't. Pure logic is
+vscode-free + unit-tested; the wizard dialogs + git/folder actions are the glue.
+
+- **OnboardingService** (`src/onboarding/OnboardingService.ts`): pure
+  `evaluateOnboarding(facts)` -> ordered steps + `ready` + a `blocker` ConclaveError
+  for the first unmet REQUIRED step. Steps: keys (required, SETUP-1), folder
+  (required, SETUP-11), git (optional, SETUP-12 — degrades to read-only-safe, never
+  blocks). `shouldLaunchWizard` = firstRun || !ready.
+- **OnboardingHost** (`src/onboarding/OnboardingHost.ts`): gathers facts (any stored
+  key, open folder, `.git` present, `globalState['conclave.onboarded']`), runs the
+  guided modal wizard, performs step actions (manage keys, open folder, `git init`
+  via `child_process`), and persists completion. `notifyIfIncomplete` shows a
+  NON-blocking nudge on activation — the modal wizard only opens on explicit user
+  action, keeping activation headless-safe.
+- **Webview banner**: `ConclaveViewProvider.postOnboarding` pushes a serialized
+  status (steps + readiness only — no keys/reports); `media/main.js` renders a
+  "Finish setup" banner with a Start-setup button (ARIA-labelled, UX-7) that posts
+  `startOnboarding`. Banner hides once ready.
+- **Wiring**: `Services` builds `onboarding`; `extension.ts` registers
+  `conclave.startOnboarding` + `conclave.initGit` and fires the non-blocking nudge
+  after activation.
+
+Catalog handled: UX-5, SETUP-1, SETUP-11, SETUP-12.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

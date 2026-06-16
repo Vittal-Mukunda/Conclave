@@ -5,6 +5,7 @@
   const vscode = acquireVsCodeApi();
   const list = document.getElementById('providers');
   const status = document.getElementById('status');
+  const onboarding = document.getElementById('onboarding');
 
   function setStatus(text) {
     status.textContent = text || '';
@@ -63,6 +64,40 @@
     });
   }
 
+  function renderOnboarding(payload) {
+    onboarding.innerHTML = '';
+    if (!payload || payload.ready) {
+      onboarding.hidden = true;
+      return;
+    }
+    onboarding.hidden = false;
+
+    const heading = document.createElement('h2');
+    heading.textContent = 'Finish setup';
+    onboarding.appendChild(heading);
+
+    const steps = document.createElement('ul');
+    steps.className = 'steps';
+    (payload.steps || []).forEach(function (s) {
+      const li = document.createElement('li');
+      li.className = s.done ? 'step done' : 'step';
+      const mark = s.done ? '✓ ' : '○ ';
+      const opt = s.required ? '' : ' (optional)';
+      li.textContent = mark + s.title + opt;
+      steps.appendChild(li);
+    });
+    onboarding.appendChild(steps);
+
+    const start = document.createElement('button');
+    start.textContent = 'Start setup';
+    start.className = 'primary';
+    start.setAttribute('aria-label', 'Start conclave setup');
+    start.addEventListener('click', function () {
+      vscode.postMessage({ type: 'startOnboarding' });
+    });
+    onboarding.appendChild(start);
+  }
+
   window.addEventListener('message', function (event) {
     const msg = event.data;
     if (!msg) {
@@ -70,6 +105,8 @@
     }
     if (msg.type === 'providers') {
       render(msg.payload || []);
+    } else if (msg.type === 'onboarding') {
+      renderOnboarding(msg.payload);
     } else if (msg.type === 'testResult') {
       setStatus(msg.payload && msg.payload.message);
     }

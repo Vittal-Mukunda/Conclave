@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 5 COMPLETE
+## Status: Phase 6 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -13,8 +13,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 3 | Rate-limit-aware scheduler | ✅ complete |
 | 4 | Capability & quota registry + cost meter | ✅ complete |
 | 5 | Shadow-price engine + budget/spend control | ✅ complete |
-| 6 | Onboarding wizard & first-run | ⬜ next |
-| 7 | Code intelligence + localization | ⬜ |
+| 6 | Onboarding wizard & first-run | ✅ complete |
+| 7 | Code intelligence + localization | ⬜ next |
 | 8 | Editing + git checkpoints + repo memory | ⬜ |
 | 9 | Verification ladder + sandbox | ⬜ |
 | 10 | Agent loop | ⬜ |
@@ -30,6 +30,23 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 6 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| First run -> wizard (UX-5) | `onboarding.test.ts` (shouldLaunchWizard on firstRun) + `notifyIfIncomplete` | ✅ |
+| SETUP-1: no keys -> guide, can't run | `onboarding.test.ts` (ready=false, blocker COST→SETUP-1) | ✅ |
+| SETUP-11: no folder -> prompt, disable run | `onboarding.test.ts` (blocker SETUP-11) | ✅ |
+| SETUP-12: not git -> offer init / read-only optional | `onboarding.test.ts` (git step optional, non-blocking) | ✅ |
+| Keys precedence over folder when both missing | `onboarding.test.ts` | ✅ |
+| Blocker carries step action + resume action (≥1 button) | `onboarding.test.ts` | ✅ |
+| Wizard completion persists (no re-nag) | `OnboardingHost` globalState `conclave.onboarded` | ✅ |
+| Webview onboarding banner (steps + Start setup) | `ConclaveViewProvider.postOnboarding` + `media/main.js` | ✅ |
+| Activation stays non-blocking / headless-safe | `notifyIfIncomplete` (non-modal nudge; modal only on user action) | ✅ |
+| Host activates + Phase 5/6 commands registered | integration 6/6 (setBudget, startOnboarding, initGit) | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 145/145 |
+| `.vsix` packages | `npm run package` (566 KB, 15 files) | ✅ |
 
 ## Phase 5 — acceptance gate (all met)
 

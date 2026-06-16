@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import { handleWebviewMessage } from './messaging';
 import { PanelHost } from './panel/PanelHost';
+import { OnboardingStatus } from './onboarding/OnboardingService';
+
+/** Minimal onboarding view the host can supply to the webview banner. */
+export interface OnboardingProvider {
+  status(): Promise<OnboardingStatus>;
+}
 
 /**
  * Renders the conclave sidebar webview and wires the two-way message channel.
@@ -15,6 +21,7 @@ export class ConclaveViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly host?: PanelHost,
+    private readonly onboarding?: OnboardingProvider,
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -32,6 +39,7 @@ export class ConclaveViewProvider implements vscode.WebviewViewProvider {
     });
 
     void this.postProviders();
+    void this.postOnboarding();
   }
 
   public reveal(): void {
@@ -45,6 +53,26 @@ export class ConclaveViewProvider implements vscode.WebviewViewProvider {
     }
     const providers = await this.host.getProviderStatus();
     void this.view.webview.postMessage({ type: 'providers', payload: providers });
+  }
+
+  /** Push the onboarding banner state (steps + readiness). Keys/reports excluded. */
+  public async postOnboarding(): Promise<void> {
+    if (!this.view || !this.onboarding) {
+      return;
+    }
+    const status = await this.onboarding.status();
+    void this.view.webview.postMessage({
+      type: 'onboarding',
+      payload: {
+        ready: status.ready,
+        steps: status.steps.map((s) => ({
+          id: s.id,
+          title: s.title,
+          done: s.done,
+          required: s.required,
+        })),
+      },
+    });
   }
 
   private async onMessage(webview: vscode.Webview, msg: unknown): Promise<void> {
@@ -64,6 +92,11 @@ export class ConclaveViewProvider implements vscode.WebviewViewProvider {
     switch (message.type) {
       case 'getProviders':
         await this.postProviders();
+        break;
+      case 'startOnboarding':
+        await vscode.commands.executeCommand('conclave.startOnboarding');
+        await this.postProviders();
+        await this.postOnboarding();
         break;
       case 'addKey':
         if (providerId) {
@@ -116,6 +149,7 @@ export class ConclaveViewProvider implements vscode.WebviewViewProvider {
 <body>
   <main>
     <h1>conclave</h1>
+    <section id="onboarding" aria-label="Setup" hidden></section>
     <p class="tagline">Providers — add a free or paid key to get started.</p>
     <ul id="providers" aria-label="LLM providers"></ul>
     <p id="status" role="status" aria-live="polite"></p>
