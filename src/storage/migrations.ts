@@ -106,6 +106,29 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 5,
+    // Phase 12: per-workspace contextual-bandit (LinUCB) arm state — the ridge
+    // matrix A and vector b per model, the observation count, and an EWMA of
+    // token consumption (rho) feeding pricedCost. Scoped by workspace_id so one
+    // repo's learned competence never bleeds into another (STATE-6). Survives
+    // reloads so the learner keeps improving across sessions.
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS bandit (
+          workspace_id TEXT NOT NULL,
+          arm TEXT NOT NULL,
+          dim INTEGER NOT NULL,
+          a_mat TEXT NOT NULL,
+          b_vec TEXT NOT NULL,
+          n INTEGER DEFAULT 0,
+          rho REAL DEFAULT 0,
+          updated_at INTEGER DEFAULT 0,
+          PRIMARY KEY (workspace_id, arm)
+        );
+      `);
+    },
+  },
 ];
 
 export function latestVersion(): number {

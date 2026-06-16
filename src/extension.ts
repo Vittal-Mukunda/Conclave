@@ -132,6 +132,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.router.estimateDifficultyCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.recordFeedback',
+        guard(async () => {
+          await services?.competence.recordFeedbackCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

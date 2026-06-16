@@ -440,6 +440,49 @@ No new edge-case-catalog IDs are scoped here (the catalog has no ROUTE group);
 the cost-mode/cap gating reuses COST-3's hard stop, and verifier-triggered
 escalation is the planned remedy path for PROV-11 (cut-off -> escalate).
 
+## Phase 12 — Competence learner (contextual bandit)
+
+The ROLE axis turned learned (OR design §5). A per-workspace disjoint **LinUCB**
+bandit picks among the Phase 11 routed candidates from *learned* per-context
+outcomes instead of fixed heuristics — "best model per stage is LEARNED, not
+big=better". All math is `vscode`-free and unit-tested; `CompetenceService` is
+the glue.
+
+- **linalg** (`src/learn/linalg.ts`): hand-rolled dense ops (identity, `addOuter`
+  rank-1 update, Gaussian `solve` with partial pivoting, `quadFormInv`). The
+  context dimension is ~11 so a heavy `ml-matrix` dependency is unwarranted — a
+  flagged, deliberate deviation; these helpers are the swap seam.
+- **types + features** (`src/learn/types.ts`, `features.ts`): `LearnContext`
+  (task-type / difficulty / role) encoded into a fixed 11-dim vector
+  `[bias, difficulty, taskType one-hot(5), role one-hot(4)]`. `HUMAN_WEIGHT=3`
+  vs `LADDER_WEIGHT=1` so human feedback dominates.
+- **LinUCB** (`src/learn/LinUCB.ts`): one linear model per arm — ridge matrix `A`,
+  vector `b`, `theta=A⁻¹b`; `score` returns `mean + alpha·sqrt(xᵀA⁻¹x)`.
+  `warmStart` folds a benchmark prior in on the bias feature (never over learned
+  data); `update` is the rank-1 reward fold; `forget(gamma)` is the sliding
+  window for drift; `export`/`import` for persistence.
+- **ConsumptionModel** (`src/learn/ConsumptionModel.ts`): per-arm EWMA of token
+  usage (the rho regressor) that refines pricedCost — a lightweight stand-in for
+  a learned regressor (same pure-TS deviation as embeddings).
+- **CompetenceLearner** (`src/learn/CompetenceLearner.ts`): selects
+  `argmax(UCB − costWeight·pricedCost)` over routed candidates (budget-coupled),
+  warm-starting unseen arms from priors. `recordLadder` (binary) and
+  `recordHuman` (heavy weight + a durable lesson) fold rewards back; `onUpdate`
+  fires for persistence. The arm is `provider/model`.
+- **BanditStore** (`src/learn/BanditStore.ts`): persists arm `A`/`b`/`n` + rho as
+  JSON in the `bandit` table (migration **v5**), scoped by `workspace_id`
+  (STATE-6). A corrupt row is skipped, not fatal (STATE-4) — the arm just
+  warm-starts fresh.
+- **CompetenceService** (`src/learn/CompetenceService.ts`): vscode glue. Warm-
+  starts from `CapabilityRegistry.benchmark_prior`, hydrates/persists per
+  workspace via `BanditStore`, writes lessons to `RepoMemory`, and tracks the
+  last selection so `conclave.recordFeedback` can attribute a human ACCEPT/REJECT.
+  `AgentService` runs `router.route → competence.select` so the agent's chosen
+  model reflects learning.
+
+Catalog handled: STATE-5 (v5 migration), STATE-6 (per-workspace arms), STATE-4
+(corrupt-row skip). No new IDs — this is an OR-brain layer, not a failure mode.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

@@ -72,4 +72,9 @@ describe('conclave extension', () => {
       'estimateDifficulty not registered',
     );
   });
+
+  it('registers the Phase 12 feedback command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.recordFeedback'), 'recordFeedback not registered');
+  });
 });

@@ -86,6 +86,10 @@
       {
         "command": "conclave.estimateDifficulty",
         "title": "conclave: Estimate Task Difficulty"
+      },
+      {
+        "command": "conclave.recordFeedback",
+        "title": "conclave: Rate Last Model Selection"
       }
     ],
     "keybindings": [

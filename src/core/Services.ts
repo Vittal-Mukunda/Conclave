@@ -34,6 +34,8 @@ import { RepoMemory } from '../editing/RepoMemory';
 import { EditService } from '../editing/EditService';
 import { VerifyService } from '../verify/VerifyService';
 import { RouterService } from '../router/RouterService';
+import { BanditStore } from '../learn/BanditStore';
+import { CompetenceService } from '../learn/CompetenceService';
 import { AgentService } from '../agent/AgentService';
 
 /**
@@ -55,6 +57,7 @@ export class Services implements vscode.Disposable {
   readonly editing: EditService;
   readonly verify: VerifyService;
   readonly router: RouterService;
+  readonly competence: CompetenceService;
   readonly agent: AgentService;
   readonly repoMemory?: RepoMemory;
   readonly scheduler: Scheduler;
@@ -66,6 +69,7 @@ export class Services implements vscode.Disposable {
   readonly pricedCost: PricedCost;
   readonly budget?: BudgetManager;
   readonly policy: CostPolicy;
+  readonly banditStore?: BanditStore;
 
   private readonly channel: vscode.OutputChannel;
   private readonly capture: GlobalCaptureHandle;
@@ -146,6 +150,7 @@ export class Services implements vscode.Disposable {
       this.telemetry = new TelemetryStore(this.storage.db);
       this.budget = new BudgetManager(this.storage.db);
       this.repoMemory = new RepoMemory(this.storage.db);
+      this.banditStore = new BanditStore(this.storage.db);
       this.logger.info('storage_ready', { version: this.storage.version });
     } catch (err) {
       this.degraded.set(Capability.Storage, 'unavailable', {
@@ -201,10 +206,23 @@ export class Services implements vscode.Disposable {
     // the role/difficulty allow over the keyed pool, priced by pricedCost and
     // gated by the live cost policy. A COST lever — climbs only on failure.
     this.router = new RouterService(this.logger, registry, this.keys, this.pricedCost, this.policy, this.budget);
+    // Competence learner (Phase 12): a per-workspace LinUCB bandit that picks
+    // among the routed candidates from learned per-context outcomes, warm-started
+    // from benchmark priors, persisted in the bandit table, and updated strongly
+    // from human ACCEPT/REJECT (lessons written to repo memory).
+    this.competence = new CompetenceService(this.logger, this.capability, this.banditStore, this.repoMemory);
     // Agent loop (Phase 10): control FSM wiring localize -> edit -> verify with
     // checkpoint/rollback + budget guards. The router (Phase 11) names the tier
-    // for the implement stage. Codegen brain deferred to later phases.
-    this.agent = new AgentService(this.logger, this.codeIntel, this.editing, this.verify, this.budget, this.router);
+    // and the learner (Phase 12) picks the model. Codegen brain deferred.
+    this.agent = new AgentService(
+      this.logger,
+      this.codeIntel,
+      this.editing,
+      this.verify,
+      this.budget,
+      this.router,
+      this.competence,
+    );
 
     // Live capacity probing: startup pass + hourly, only for keyed providers.
     if (capability) {

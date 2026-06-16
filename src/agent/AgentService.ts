@@ -5,6 +5,7 @@ import { EditService } from '../editing/EditService';
 import { VerifyService } from '../verify/VerifyService';
 import { BudgetManager } from '../cost/BudgetManager';
 import { RouterService } from '../router/RouterService';
+import { CompetenceService } from '../learn/CompetenceService';
 import { CheckpointRef } from '../editing/types';
 import { AgentLoop } from './AgentLoop';
 import { AgentTask, BudgetGate, Checkpointer, PlanDecision, Planner, Verifier } from './types';
@@ -26,6 +27,7 @@ export class AgentService {
     private readonly verify: VerifyService,
     private readonly budget?: BudgetManager,
     private readonly router?: RouterService,
+    private readonly competence?: CompetenceService,
   ) {}
 
   private planner(): Planner {
@@ -45,8 +47,15 @@ export class AgentService {
             scopeFiles: loc.candidates.length,
             localizeConfidence: loc.confidence,
           });
-          const pick = r.chosen
-            ? `${r.chosen.model.providerId}/${r.chosen.model.modelId} (${r.chosen.tier})`
+          // The learner (Phase 12) chooses among the routed candidates, folding
+          // in learned per-context competence; fall back to the router's pick.
+          const learned = this.competence?.select(
+            { taskType: r.estimate.taskType, difficulty: r.estimate.d, role: 'implement' },
+            r.candidates,
+          ).chosen;
+          const choice = learned ?? r.chosen;
+          const pick = choice
+            ? `${choice.model.providerId}/${choice.model.modelId} (${choice.tier})`
             : 'no keyed model';
           routed = `; difficulty ${r.estimate.d.toFixed(2)} (${r.estimate.level}) → ${pick}`;
         }

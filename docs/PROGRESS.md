@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 11 COMPLETE
+## Status: Phase 12 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -19,8 +19,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 9 | Verification ladder + sandbox | ✅ complete |
 | 10 | Agent loop | ✅ complete |
 | 11 | Difficulty estimator + cascade router | ✅ complete |
-| 12 | Competence learner (bandit) | ⬜ next |
-| 13 | Assignment solver + diverse council | ⬜ |
+| 12 | Competence learner (bandit) | ✅ complete |
+| 13 | Assignment solver + diverse council | ⬜ next |
 | 14 | Best-of-N + strong verifier-selector | ⬜ |
 | 15 | Security & privacy hardening | ⬜ |
 | 16 | Skills I: format/ingest/retrieval | ⬜ |
@@ -30,6 +30,32 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 12 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| LinUCB per arm: theta=A⁻¹b, UCB=mean+alpha·sqrt(xᵀA⁻¹x) | `linucb.test.ts` (unseen=optimism; reward raises mean, shrinks width) | ✅ |
+| Context = task-type / difficulty / stage (repo via workspace scope) | `features.ts` (11-dim encode); `competenceLearner.test.ts` | ✅ |
+| Select argmax(UCB − costWeight·pricedCost), budget-coupled | `competenceLearner.test.ts` (ties break on cost; cheaper wins) | ✅ |
+| Warm-start from benchmark priors | `linucb.test.ts` (prior→mean); `competenceLearner.test.ts` (strong prior picked) | ✅ |
+| Update from binary ladder pass/fail | `competenceLearner.test.ts` (pass beats fail) | ✅ |
+| Strong update from human ACCEPT/REJECT + lesson to repo memory | `competenceLearner.test.ts` (ACCEPT raises + lesson; REJECT lowers) | ✅ |
+| Sliding window for drift (forgetting factor) | `linucb.test.ts` (`forget` decays toward prior) | ✅ |
+| Consumption (rho) regressor feeds pricedCost | `competenceLearner.test.ts` (observe/expected EWMA) | ✅ |
+| Hand-rolled linear algebra is correct (no ml-matrix dep) | `linalg.test.ts` (solve/quadForm/outer; inputs unmutated) | ✅ |
+| Arm state persists per workspace; corrupt row skipped (STATE-6/STATE-4) | `banditStore.test.ts` (save/load/upsert/scope/corrupt-skip) | ✅ |
+| Migration v5 (bandit table) preserves prior rows (STATE-5) | `banditStore.test.ts` (latestVersion=5); `storage.test.ts` (dynamic) | ✅ |
+| Wired: learner picks among routed candidates; warm-start from registry priors | `AgentService.planner` (router→competence.select); `Services` wiring | ✅ |
+| Host activates + recordFeedback command registered | integration 12/12 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 287/287 |
+| `.vsix` packages | `npm run package` (589 KB, 15 files) | ✅ |
+
+**Deviation flagged:** linear algebra is hand-rolled (`src/learn/linalg.ts`,
+small Gaussian solve) rather than the mandated `ml-matrix` — the context
+dimension is tiny (11) so a dependency is unwarranted; the helpers are the
+swap seam if a real library is wanted later. Same pattern as the Phase 7
+embeddings deviation. `[[storage-engine-wasm]]`-style note.
 
 ## Phase 11 — acceptance gate (all met)
 

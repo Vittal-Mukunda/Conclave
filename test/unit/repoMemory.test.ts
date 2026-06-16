@@ -8,7 +8,7 @@ const WS_B = '/home/me/projB';
 
 describe('RepoMemory', () => {
   it('migration v4 is the latest schema version', () => {
-    expect(latestVersion()).toBe(4);
+    expect(latestVersion()).toBe(5);
     // Storage.memory() runs all migrations; repo_memory must be queryable.
     const m = new RepoMemory(Storage.memory().db);
     expect(m.all(WS_A)).toEqual([]);
