@@ -9,6 +9,8 @@ import { CompetenceService } from '../learn/CompetenceService';
 import { CheckpointRef } from '../editing/types';
 import { AgentLoop } from './AgentLoop';
 import { AgentTask, BudgetGate, Checkpointer, PlanDecision, Planner, Verifier } from './types';
+import { RunStateStore } from './RunStateStore';
+import { RunCoordinator, RunRecord, findCrashedRuns } from './RunState';
 
 // vscode glue for the agent loop. Wires the safety rails to real services:
 // checkpointer = Phase 8 EditService, verifier = Phase 9 VerifyService, budget
@@ -20,6 +22,9 @@ import { AgentTask, BudgetGate, Checkpointer, PlanDecision, Planner, Verifier } 
 // control loop without inventing edits.
 
 export class AgentService {
+  // STATE-3: one in-process coordinator gates concurrent runs per workspace.
+  private readonly coordinator = new RunCoordinator();
+
   constructor(
     private readonly logger: Logger,
     private readonly codeIntel: CodeIntelService,
@@ -28,6 +33,7 @@ export class AgentService {
     private readonly budget?: BudgetManager,
     private readonly router?: RouterService,
     private readonly competence?: CompetenceService,
+    private readonly runStore?: RunStateStore,
   ) {}
 
   private planner(): Planner {
@@ -68,7 +74,7 @@ export class AgentService {
     };
   }
 
-  private checkpointer(): Checkpointer {
+  private checkpointer(onCheckpoint?: (ref: string) => void): Checkpointer {
     const refs = new Map<string, CheckpointRef>();
     return {
       checkpoint: async (label) => {
@@ -77,6 +83,8 @@ export class AgentService {
           return undefined;
         }
         refs.set(ref.ref, ref);
+        // STATE-1/2: persist the resume point + bump liveness each iteration.
+        onCheckpoint?.(ref.ref);
         return ref.ref;
       },
       rollback: async (refStr) => {
@@ -119,31 +127,203 @@ export class AgentService {
       return;
     }
 
+    const workspaceId = this.workspaceId() ?? 'no-workspace';
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // STATE-3: refuse to start a second run on a workspace already running one.
+    const claim = this.coordinator.begin(workspaceId, runId);
+    if (claim.state === 'queued') {
+      this.coordinator.end(workspaceId, runId); // don't actually hold a slot for a one-shot command
+      void vscode.window.showWarningMessage(
+        'conclave: an agent run is already in progress for this workspace. Wait for it to finish before starting another (STATE-3).',
+      );
+      return;
+    }
+
+    // STATE-1/2: persist the run so a reload/crash can recover it.
+    const started = Date.now();
+    this.runStore?.begin({
+      id: runId,
+      workspaceId,
+      goal,
+      status: 'running',
+      iteration: 0,
+      startedAt: started,
+      heartbeatAt: started,
+    });
+
+    let iter = 0;
     const loop = new AgentLoop({
       planner: this.planner(),
       actor: { apply: () => ({ ok: false, reason: 'no codegen engine wired yet' }) },
       verifier: this.verifier(),
-      checkpointer: this.checkpointer(),
+      checkpointer: this.checkpointer((ref) => {
+        iter += 1;
+        this.runStore?.heartbeat(runId, Date.now(), iter, ref);
+      }),
       budget: this.budgetGate(),
     });
 
-    const result = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: 'conclave: agent running…' },
-      () => loop.run({ goal }),
-    );
-    this.logger.info('agent_done', { status: result.status, iterations: result.iterations.length, best: result.bestConfidence });
-
-    const head = `conclave [${result.status}]: ${result.reason}`;
-    if (result.status === 'needs-clarification' && result.question) {
-      void vscode.window.showWarningMessage(`${head} — ${result.question}`);
-    } else if (result.status === 'blocked') {
-      void vscode.window.showWarningMessage(
-        result.scopedSuggestion ? `${head} Try: ${result.scopedSuggestion}` : head,
+    try {
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'conclave: agent running…' },
+        () => loop.run({ goal }),
       );
-    } else if (result.status === 'success') {
-      void vscode.window.showInformationMessage(`${head} (confidence ${Math.round(result.bestConfidence * 100)}%)`);
-    } else {
-      void vscode.window.showWarningMessage(head);
+      this.runStore?.finish(runId, 'completed');
+      this.logger.info('agent_done', { status: result.status, iterations: result.iterations.length, best: result.bestConfidence });
+
+      const head = `conclave [${result.status}]: ${result.reason}`;
+      if (result.status === 'needs-clarification' && result.question) {
+        void vscode.window.showWarningMessage(`${head} — ${result.question}`);
+      } else if (result.status === 'blocked') {
+        void vscode.window.showWarningMessage(
+          result.scopedSuggestion ? `${head} Try: ${result.scopedSuggestion}` : head,
+        );
+      } else if (result.status === 'success') {
+        void vscode.window.showInformationMessage(`${head} (confidence ${Math.round(result.bestConfidence * 100)}%)`);
+      } else {
+        void vscode.window.showWarningMessage(head);
+      }
+    } catch (err) {
+      // The run threw — leave it 'running' so it surfaces as recoverable, then rethrow.
+      this.logger.warn('agent_run_failed', { runId });
+      throw err;
+    } finally {
+      this.coordinator.end(workspaceId, runId);
     }
+  }
+
+  /**
+   * Non-blocking activation nudge: if a previous run was orphaned by a crash /
+   * reload (STATE-2), tell the user once and offer recovery. Headless-safe.
+   */
+  async notifyIfRunOrphaned(): Promise<void> {
+    if (!this.runStore) {
+      return;
+    }
+    const workspaceId = this.workspaceId() ?? 'no-workspace';
+    const crashed = findCrashedRuns(this.runStore.running(workspaceId), Date.now());
+    if (crashed.length === 0) {
+      return;
+    }
+    this.logger.info('agent_run_orphaned', { count: crashed.length });
+    const pick = await vscode.window.showWarningMessage(
+      `conclave: an agent run was interrupted ("${crashed[0].run.goal}"). Recover it?`,
+      'Recover…',
+      'Dismiss',
+    );
+    if (pick === 'Recover…') {
+      await this.recoverRunsCommand();
+    }
+  }
+
+  /**
+   * `conclave.recoverRun` — STATE-2 resume-or-discard. Lists the orphaned runs;
+   * the user resumes one from its last checkpoint (re-running the goal) or
+   * discards it (rolling back to the checkpoint and forgetting the run).
+   */
+  async recoverRunsCommand(): Promise<void> {
+    if (!this.runStore) {
+      void vscode.window.showWarningMessage('conclave: run recovery is unavailable (storage is off).');
+      return;
+    }
+    const workspaceId = this.workspaceId() ?? 'no-workspace';
+    const crashed = findCrashedRuns(this.runStore.running(workspaceId), Date.now());
+    if (crashed.length === 0) {
+      void vscode.window.showInformationMessage('conclave: no interrupted runs to recover.');
+      return;
+    }
+
+    const choice = await vscode.window.showQuickPick(
+      crashed.map((c) => ({
+        label: c.run.goal,
+        description: `iter ${c.run.iteration}${c.recoverable ? ' · checkpoint available' : ' · no checkpoint'}`,
+        candidate: c,
+      })),
+      { placeHolder: 'Select an interrupted run to recover' },
+    );
+    if (!choice) {
+      return;
+    }
+    const { candidate } = choice;
+
+    const action = await vscode.window.showQuickPick(
+      [
+        { label: 'Resume', description: 'restart the goal from where it left off (STATE-1)', value: 'resume' as const },
+        {
+          label: 'Discard',
+          description: candidate.recoverable ? 'roll back to the last checkpoint and forget it' : 'forget it',
+          value: 'discard' as const,
+        },
+      ],
+      { placeHolder: `"${candidate.run.goal}" — resume or discard?` },
+    );
+    if (!action) {
+      return;
+    }
+
+    if (action.value === 'discard') {
+      // STATE-1: roll the tree back to the last checkpoint if there is one.
+      if (candidate.run.checkpointRef) {
+        const ref: CheckpointRef = { ref: candidate.run.checkpointRef, label: candidate.run.goal, capturedDirty: false };
+        await this.editing.rollback(ref);
+      }
+      this.runStore.finish(candidate.run.id, 'aborted');
+      this.logger.info('agent_run_discarded', { runId: candidate.run.id });
+      void vscode.window.showInformationMessage('conclave: interrupted run discarded.');
+      return;
+    }
+
+    // Resume: mark the old record terminal and re-drive the goal as a fresh run.
+    this.runStore.finish(candidate.run.id, 'aborted');
+    this.logger.info('agent_run_resumed', { runId: candidate.run.id });
+    await this.runResumed(candidate.run);
+  }
+
+  /** Re-drive a recovered run's goal through the loop as a new run (STATE-1). */
+  private async runResumed(prior: RunRecord): Promise<void> {
+    const workspaceId = prior.workspaceId;
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    if (this.coordinator.begin(workspaceId, runId).state === 'queued') {
+      this.coordinator.end(workspaceId, runId);
+      void vscode.window.showWarningMessage('conclave: a run is already in progress; try recovery again later (STATE-3).');
+      return;
+    }
+    const started = Date.now();
+    this.runStore?.begin({
+      id: runId,
+      workspaceId,
+      goal: prior.goal,
+      status: 'running',
+      iteration: prior.iteration,
+      checkpointRef: prior.checkpointRef,
+      startedAt: started,
+      heartbeatAt: started,
+    });
+    let iter = prior.iteration;
+    const loop = new AgentLoop({
+      planner: this.planner(),
+      actor: { apply: () => ({ ok: false, reason: 'no codegen engine wired yet' }) },
+      verifier: this.verifier(),
+      checkpointer: this.checkpointer((ref) => {
+        iter += 1;
+        this.runStore?.heartbeat(runId, Date.now(), iter, ref);
+      }),
+      budget: this.budgetGate(),
+    });
+    try {
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'conclave: resuming agent…' },
+        () => loop.run({ goal: prior.goal }),
+      );
+      this.runStore?.finish(runId, 'completed');
+      void vscode.window.showInformationMessage(`conclave [${result.status}]: ${result.reason}`);
+    } finally {
+      this.coordinator.end(workspaceId, runId);
+    }
+  }
+
+  private workspaceId(): string | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
 }

@@ -127,6 +127,12 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
       ),
       vscode.commands.registerCommand(
+        'conclave.recoverRun',
+        guard(async () => {
+          await services?.agent.recoverRunsCommand();
+        }),
+      ),
+      vscode.commands.registerCommand(
         'conclave.estimateDifficulty',
         guard(async () => {
           await services?.router.estimateDifficultyCommand();
@@ -193,6 +199,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Index installed skills in the background (non-blocking; headless-safe).
     void services.skills.refresh().catch(() => undefined);
+
+    // STATE-2: surface any run orphaned by a crash/reload (non-blocking).
+    void services.agent.notifyIfRunOrphaned().catch(() => undefined);
 
     // First-run nudge — non-blocking; the wizard opens only on user action.
     void services.onboarding.notifyIfIncomplete(async () => {

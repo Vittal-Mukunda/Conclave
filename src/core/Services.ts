@@ -43,6 +43,7 @@ import { SkillStore } from '../skills/SkillStore';
 import { SkillsService } from '../skills/SkillsService';
 import { MarketplaceClient } from '../skills/Marketplace';
 import { AgentService } from '../agent/AgentService';
+import { RunStateStore } from '../agent/RunStateStore';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -81,6 +82,7 @@ export class Services implements vscode.Disposable {
   readonly policy: CostPolicy;
   readonly banditStore?: BanditStore;
   readonly skillStore?: SkillStore;
+  readonly runStore?: RunStateStore;
 
   private readonly channel: vscode.OutputChannel;
   private readonly capture: GlobalCaptureHandle;
@@ -163,6 +165,7 @@ export class Services implements vscode.Disposable {
       this.repoMemory = new RepoMemory(this.storage.db);
       this.banditStore = new BanditStore(this.storage.db);
       this.skillStore = new SkillStore(this.storage.db);
+      this.runStore = new RunStateStore(this.storage.db);
       this.logger.info('storage_ready', { version: this.storage.version });
     } catch (err) {
       this.degraded.set(Capability.Storage, 'unavailable', {
@@ -262,6 +265,9 @@ export class Services implements vscode.Disposable {
     // Agent loop (Phase 10): control FSM wiring localize -> edit -> verify with
     // checkpoint/rollback + budget guards. The router (Phase 11) names the tier
     // and the learner (Phase 12) picks the model. Codegen brain deferred.
+    // State/crash/concurrency (Phase 19): the run store persists each run so a
+    // reload/crash can resume from the last checkpoint (STATE-1/2); an in-process
+    // coordinator prevents two concurrent runs per workspace (STATE-3).
     this.agent = new AgentService(
       this.logger,
       this.codeIntel,
@@ -270,6 +276,7 @@ export class Services implements vscode.Disposable {
       this.budget,
       this.router,
       this.competence,
+      this.runStore,
     );
 
     // Live capacity probing: startup pass + hourly, only for keyed providers.

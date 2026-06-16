@@ -155,6 +155,29 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 7,
+    // Phase 19: the in-flight agent run. One row per run, keyed by id, scoped by
+    // workspace_id (STATE-6). `status='running'` + a frozen `heartbeat_at` is how
+    // a crash/reload is detected (STATE-2); `checkpoint_ref` is the resume /
+    // rollback point (STATE-1). Terminal rows ('completed'/'aborted') are kept as
+    // a short audit trail and skipped by recovery.
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_run (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          goal TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'running',
+          iteration INTEGER DEFAULT 0,
+          checkpoint_ref TEXT,
+          started_at INTEGER DEFAULT 0,
+          heartbeat_at INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_run_ws ON agent_run(workspace_id, status);
+      `);
+    },
+  },
 ];
 
 export function latestVersion(): number {

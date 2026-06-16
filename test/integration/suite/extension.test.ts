@@ -112,4 +112,9 @@ describe('conclave extension', () => {
     assert.ok(commands.includes('conclave.scanSkills'), 'scanSkills not registered');
     assert.ok(commands.includes('conclave.searchSkills'), 'searchSkills not registered');
   });
+
+  it('registers the Phase 19 run recovery command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.recoverRun'), 'recoverRun not registered');
+  });
 });

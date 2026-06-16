@@ -122,6 +122,10 @@
       {
         "command": "conclave.searchSkills",
         "title": "conclave: Search Skill Marketplace"
+      },
+      {
+        "command": "conclave.recoverRun",
+        "title": "conclave: Recover Interrupted Run"
       }
     ],
     "keybindings": [

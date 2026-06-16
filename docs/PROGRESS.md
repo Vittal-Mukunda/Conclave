@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 18 COMPLETE
+## Status: Phase 19 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -26,10 +26,38 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 16 | Skills I: format/ingest/retrieval | ✅ complete |
 | 17 | Skills II: composition/injection | ✅ complete |
 | 18 | Skills III: security sandbox/marketplace | ✅ complete |
-| 19 | State, crash recovery & concurrency | ⬜ next |
-| 20 | UI / UX panel | ⬜ |
+| 19 | State, crash recovery & concurrency | ✅ complete |
+| 20 | UI / UX panel | ⬜ next |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 19 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| STATE-3: two runs → second is prevented/queued, never races | `runState.test.ts` (queue behind active; idempotent same id; per-workspace independent; promote on end) | ✅ |
+| STATE-3 wired: a second `runAgent` on a busy workspace is refused with a clear message | `AgentService.runAgentCommand` (coordinator.begin → queued → warn + return) | ✅ |
+| STATE-1/2: a run is persisted (goal, status, iteration, checkpoint, heartbeat) and survives a reload | `runStateStore.test.ts` (begin/get/running; reopened-db orphan recoverable) | ✅ |
+| STATE-1: heartbeat records the resume point (iteration + last checkpoint) each iteration | `runStateStore.test.ts` (heartbeat bumps iter/checkpoint); `AgentService.checkpointer` onCheckpoint → `runStore.heartbeat` | ✅ |
+| STATE-2: a crashed run (frozen heartbeat on a 'running' row) is detected; live runs excluded | `runState.test.ts` (`findCrashedRuns`: stale flagged, live/terminal excluded, newest-first) | ✅ |
+| STATE-2: recoverable iff a checkpoint exists; resume re-drives the goal, discard rolls back to the checkpoint | `runState.test.ts` (recoverable flag); `AgentService.recoverRunsCommand`/`runResumed` (resume re-runs; discard → editing.rollback + finish 'aborted') | ✅ |
+| STATE-2: activation surfaces an orphaned run (non-blocking, headless-safe) | `AgentService.notifyIfRunOrphaned`; `extension.ts` background nudge | ✅ |
+| STATE-4: a corrupt/unknown-status run row is skipped, never fatal | `runStateStore.test.ts` (bogus-status row skipped) | ✅ |
+| STATE-5: migration v7 (`agent_run`) preserves prior rows | `storage.test.ts` (dynamic latestVersion=7); `banditStore`/`skillStore`/`repoMemory` (v7) | ✅ |
+| STATE-6: runs + coordinator scoped per workspace | `runState.test.ts` (distinct workspaces); `runStateStore.test.ts` (per-workspace running) | ✅ |
+| Wired: Services builds RunStateStore; AgentService owns the RunCoordinator | `Services` (runStore → AgentService); `AgentService` (`coordinator`) | ✅ |
+| Host activates + recoverRun command registered | integration 19/19 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 434/434 |
+| `.vsix` packages | `npm run package` (611 KB, 15 files) | ✅ |
+
+**Notes:** full mid-iteration resume (re-entering the loop at the exact failed
+step) needs the codegen brain that lands later — same flagged deferred-brain
+pattern as the loop/council/best-of-N engines. The seam is complete: the run
+record + checkpoint ref + coordinator + crash classification are all persisted
+and tested; "Resume" re-drives the same goal from the last checkpoint and
+"Discard" rolls the tree back to it. The coordinator is in-process (one
+extension host owns one) — the authoritative concurrency gate within a session;
+the persisted heartbeat is what catches a cross-session crash (STATE-2).
 
 ## Phase 18 — acceptance gate (all met)
 

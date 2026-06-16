@@ -752,6 +752,46 @@ SKILL-3 (scanner-evading .py/.pyc mismatch + scripts-off default), SKILL-7
 (popularity never grants trust). SKILL-6 (marketplace unreachable → local)
 reinforced by the typed client error. The Skills subsystem (16–18) is complete.
 
+## Phase 19 — State, crash recovery & concurrency
+
+An agent run is durable. It's persisted as it goes so a reload resumes it
+(STATE-1), a crash leaves a recoverable trace (STATE-2), and a second run can't
+race the first (STATE-3). Pure control logic + a SQLite store + thin vscode glue
+in `AgentService` — no new engine.
+
+> **Resume deviation (deliberate, flagged):** re-entering the loop at the exact
+> failed step needs the deferred codegen brain (same pattern as the
+> loop/council/best-of-N engines). The seam is complete and tested — the run
+> record, last checkpoint, coordinator and crash classifier all persist; until
+> the brain lands, **Resume** re-drives the same goal from the last checkpoint
+> and **Discard** rolls the tree back to it.
+
+- **RunState** (`src/agent/RunState.ts`): pure, vscode-free.
+  - `RunCoordinator` (STATE-3) — at most one active run per workspace; further
+    requests queue FIFO. In-process (one host owns one), so it's the
+    authoritative in-session gate; cross-session crashes are caught by the
+    persisted heartbeat, not here. Timer-free; the caller drives begin/end.
+  - `findCrashedRuns` (STATE-1/2) — of the persisted `running` rows, the ones
+    whose heartbeat froze past `DEFAULT_STALE_MS` are orphaned by a crash/reload;
+    the live run heartbeats within the window and is excluded. A row with a
+    checkpoint is `recoverable` (resume or clean rollback); one without can only
+    be discarded.
+- **RunStateStore** (`src/agent/RunStateStore.ts`): the `agent_run` table
+  (migration v7), scoped by `workspace_id` (STATE-6). `begin` records a run;
+  `heartbeat` bumps liveness + iteration + the last checkpoint each turn (the
+  STATE-1 resume point); `finish` marks it terminal so it's no longer a recovery
+  candidate. A corrupt/unknown-status row is skipped, never fatal (STATE-4).
+- **AgentService** wiring: `runAgentCommand` claims the workspace via the
+  coordinator (refusing a concurrent run, STATE-3), persists the run, and
+  heartbeats from the checkpointer each iteration; a thrown run is left `running`
+  so it surfaces as recoverable. `notifyIfRunOrphaned` nudges on activation
+  (non-blocking, headless-safe); `recoverRunsCommand` (`conclave.recoverRun`)
+  offers resume-or-discard per orphaned run.
+
+Catalog handled: STATE-1 (reload → resume from checkpoint), STATE-2 (crash →
+detect orphan + resume/discard), STATE-3 (two runs → coordinator prevents/queues).
+STATE-4/5/6 reinforced (corrupt-row skip, migration v7, per-workspace scope).
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:
