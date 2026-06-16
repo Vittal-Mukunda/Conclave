@@ -601,6 +601,66 @@ The redaction (SEC-1) and fencing (SEC-3) are callable today and plug into the
 prompt-assembly path with codegen; the sandbox policy (SEC-5) enforces once a
 real container replaces the degraded process sandbox.
 
+## Phase 16 — Skills I: format / ingest / retrieval
+
+The first third of the Skills subsystem (docs/skills-spec.md). Turns the
+SKILL.md standard into a validated, content-addressed, retrievable index. The
+parse/ingest/retrieve/store logic is pure + unit-tested; `SkillsService` is the
+disk/UI glue. Composition + injection is Phase 17; the static scan + script
+sandbox + marketplace are Phase 18.
+
+> **Frontmatter-parser deviation (deliberate, flagged):** the build-plan mandates
+> a YAML parser for SKILL.md frontmatter. The frontmatter is a *narrow, fully
+> specified subset* (scalars, quoted values, one-level maps, `>`/`|` block
+> scalars, a space-separated `allowed-tools`), so `parse.ts` ships a
+> deterministic, dependency-free parser for exactly that subset — the same
+> pure-TS deviation pattern as linalg/embeddings, and the swap seam if a full
+> YAML engine is ever wanted.
+
+- **types** (`src/skills/types.ts`): `TrustTier` (user/project/vetted/community)
+  + `TRUST_PRIOR`, `SkillSourceRef`, `SkillFrontmatter` (known fields + preserved
+  `extra`), `Skill` (the ingested unit: body, globs, references, warnings,
+  `scriptsEnabled`, `contentHash`, `bodyTokens`), `SkillFolderInput`,
+  `IngestResult`, `SkillLockEntry`.
+- **parse** (`src/skills/parse.ts`): `parseSkillMd` splits the `---`-fenced
+  frontmatter (MUST start line 1) from the body, parses the YAML subset, and
+  **validates loudly** (SKILL-1): name required + `^[a-z0-9]+(-[a-z0-9]+)*$` +
+  ≤64 + MUST equal the directory name; description required + non-empty + ≤1024;
+  compatibility ≤500; `allowed-tools` parsed to a list; unknown fields preserved.
+  An over-long body is a non-fatal warning (push to references/).
+- **ingest** (`src/skills/ingest.ts`): pure `ingestSkill(folder)` over an
+  injected file map — parses + validates the SKILL.md, computes a content
+  hash over all files (`folderHash`, order-independent — the content-addressed
+  key), extracts target globs from metadata/when_to_use, and partitions
+  referenced `references/`·`scripts/`·`assets/` paths into present vs **missing**
+  (SKILL-8 graceful note, not a failure). Invalid → a typed SKILL-1 error the
+  caller quarantines. Community tier defaults `scriptsEnabled=false`.
+- **Retriever** (`src/skills/Retriever.ts`): pure hybrid scorer —
+  `w·(embedding cosine) + w·(BM25 keyword) + w·(file-glob match) + small trust
+  prior`, reusing the codeintel `HashingEmbedder`/`cosine` + `LexicalIndex`. The
+  **description is the primary signal**. Trust is a tie-break/nudge, never enough
+  alone to cross the activation threshold. `retrieve` ranks, applies the
+  threshold, and caps activation at `maxActive` (3) under a combined token budget
+  (~25k), recording dropped skills with a reason (SKILL-5).
+- **SkillStore** (`src/skills/SkillStore.ts`): persists the content-addressed
+  index in the `skill` table (migration **v6**), caching body + frontmatter so
+  retrieval scores installed skills without re-reading disk; `hashOf` powers
+  change-detection on re-scan, `lock()` emits reproducibility entries. A corrupt
+  row is skipped, not fatal (STATE-4).
+- **SkillsService** (`src/skills/SkillsService.ts`): vscode glue. Scans the local
+  roots (`.conclave/skills` = project tier, `~/.conclave/skills` = user tier),
+  reads each sub-folder into a file map (size/count guards), ingests +
+  quarantines, refreshes + persists the index, and retrieves for a task. An
+  optional `RemoteSkillSource` seam (Phase 18) degrades to **local skills** with
+  a retry when unreachable (SKILL-6). Commands `conclave.refreshSkills` +
+  `conclave.findSkills`; a non-blocking scan runs on activation.
+
+Catalog handled: SKILL-1 (invalid SKILL.md / name≠dir / bad YAML → fail loudly +
+quarantine), SKILL-5 (active-skill cap + token budget), SKILL-6 (marketplace
+unreachable → degrade to local + retry), SKILL-8 (missing referenced file →
+graceful skip + note), plus STATE-5 (migration v6). SKILL-2/3/7/9 (security
+scan + script sandbox) are Phase 18; SKILL-4 (conflict precedence) is Phase 17.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

@@ -129,6 +129,32 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 6,
+    // Phase 16: the content-addressed skills index. One row per ingested skill,
+    // keyed by (name, source) so the same skill from two sources is distinct.
+    // `content_hash` is the git-tree/folder hash for reproducible re-scans and
+    // change detection; the body + frontmatter are cached so retrieval can score
+    // without re-reading disk. Not workspace-scoped — installed skills are shared.
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS skill (
+          name TEXT NOT NULL,
+          source TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          content_hash TEXT NOT NULL,
+          trust TEXT NOT NULL,
+          description TEXT NOT NULL,
+          body TEXT NOT NULL,
+          frontmatter TEXT NOT NULL,
+          globs TEXT,
+          scripts_enabled INTEGER DEFAULT 0,
+          updated_at INTEGER DEFAULT 0,
+          PRIMARY KEY (name, source)
+        );
+      `);
+    },
+  },
 ];
 
 export function latestVersion(): number {

@@ -156,10 +156,25 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.security.toggleSensitiveRepoCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.refreshSkills',
+        guard(async () => {
+          await services?.skills.refreshCommand();
+        }),
+      ),
+      vscode.commands.registerCommand(
+        'conclave.findSkills',
+        guard(async () => {
+          await services?.skills.findSkillsCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();
     void services.connectivity.check();
+
+    // Index installed skills in the background (non-blocking; headless-safe).
+    void services.skills.refresh().catch(() => undefined);
 
     // First-run nudge — non-blocking; the wizard opens only on user action.
     void services.onboarding.notifyIfIncomplete(async () => {

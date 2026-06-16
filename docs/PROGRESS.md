@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 15 COMPLETE
+## Status: Phase 16 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -23,13 +23,42 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 13 | Assignment solver + diverse council | ✅ complete |
 | 14 | Best-of-N + strong verifier-selector | ✅ complete |
 | 15 | Security & privacy hardening | ✅ complete |
-| 16 | Skills I: format/ingest/retrieval | ⬜ next |
-| 17 | Skills II: composition/injection | ⬜ |
+| 16 | Skills I: format/ingest/retrieval | ✅ complete |
+| 17 | Skills II: composition/injection | ⬜ next |
 | 18 | Skills III: security sandbox/marketplace | ⬜ |
 | 19 | State, crash recovery & concurrency | ⬜ |
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 16 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| SKILL.md format: frontmatter starts line 1; name/description required; name regex + ≤64; metadata map; allowed-tools list; unknown fields preserved | `skillsParse.test.ts` (valid parse; block scalars + nested map; field normalisation) | ✅ |
+| SKILL-1: missing/unclosed frontmatter, missing/invalid name, name≠dir, missing/over-long description → FAIL LOUDLY (typed SKILL-1 + detail) | `skillsParse.test.ts` (6 failure cases); `skillsIngest.test.ts` (name≠dir / no SKILL.md quarantined) | ✅ |
+| Ingest: content-addressed folder hash (order-independent, content-sensitive) | `skillsIngest.test.ts` (folderHash); `skillStore.test.ts` (hash changes on body bump) | ✅ |
+| SKILL-8: missing referenced file → graceful note, not failure | `skillsIngest.test.ts` (missingReferences + SKILL-8 warning) | ✅ |
+| Community tier defaults scripts DISABLED; first-party may run | `skillsIngest.test.ts` (scriptsEnabled by trust) | ✅ |
+| Retrieval: description-primary hybrid scorer (embed + BM25 + glob + trust prior) ranks the match first | `skillsRetrieve.test.ts` (PDF task → pdf-tools; SQL task → sql-helper) | ✅ |
+| Activation threshold drops non-matches; trust prior can't cross it alone | `skillsRetrieve.test.ts` (pdf below-threshold for SQL task) | ✅ |
+| File-glob match boosts a skill for changed files | `skillsRetrieve.test.ts` (changedGlobs → ts-style first; glob signal = 1) | ✅ |
+| SKILL-5: ≤3 active + combined token budget; overflow dropped + reported | `skillsRetrieve.test.ts` (over-cap; over-budget) | ✅ |
+| Trust precedence breaks ties (user/project > community) | `skillsRetrieve.test.ts` (dup → user wins) | ✅ |
+| Content-addressed store persists + reloads; lock() for reproducibility (STATE-4 corrupt-row skip) | `skillStore.test.ts` (save/reload/upsert/persist/lock/remove) | ✅ |
+| Migration v6 (skill table) preserves prior rows (STATE-5) | `skillStore.test.ts` (latestVersion=6); `storage.test.ts` (dynamic) | ✅ |
+| SKILL-6: marketplace/remote unreachable → degrade to local + retry | `SkillsService.refresh` (RemoteSkillSource try/catch → Capability.Skills degraded + SKILL-6 ErrorReport) | ✅ |
+| Wired: Services builds SkillsService + SkillStore; activation scans in background | `Services` (skills/skillStore); `extension.ts` (refresh on activate) | ✅ |
+| Host activates + refreshSkills/findSkills commands registered | integration 16/16 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 372/372 |
+| `.vsix` packages | `npm run package` (601 KB, 15 files) | ✅ |
+
+**Notes:** Composition + conflict precedence (SKILL-4) and the per-sub-agent
+injection points are Phase 17; the static + supply-chain scan, the script
+sandbox, `allowed-tools` hard-ceiling enforcement, and the real
+marketplace/git fetch (SKILL-2/3/7/9) are Phase 18. The frontmatter parser is a
+deliberate pure-TS subset rather than a full YAML engine (flagged in
+ARCHITECTURE.md "Phase 16"; `[[storage-engine-wasm]]`-style deviation).
 
 ## Phase 15 — acceptance gate (all met)
 

@@ -12,8 +12,8 @@ function arm(n: number): ArmState {
 }
 
 describe('BanditStore', () => {
-  it('migration v5 is the latest schema version', () => {
-    expect(latestVersion()).toBe(5);
+  it('bandit table is queryable at the latest schema version', () => {
+    expect(latestVersion()).toBe(6);
     const store = new BanditStore(Storage.memory().db);
     expect(store.load(WS_A)).toEqual([]);
   });

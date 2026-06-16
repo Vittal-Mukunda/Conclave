@@ -95,4 +95,10 @@ describe('conclave extension', () => {
       'toggleSensitiveRepo not registered',
     );
   });
+
+  it('registers the Phase 16 skills commands', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.refreshSkills'), 'refreshSkills not registered');
+    assert.ok(commands.includes('conclave.findSkills'), 'findSkills not registered');
+  });
 });

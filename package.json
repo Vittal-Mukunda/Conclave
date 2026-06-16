@@ -102,6 +102,14 @@
       {
         "command": "conclave.toggleSensitiveRepo",
         "title": "conclave: Toggle Sensitive-Repo Mode"
+      },
+      {
+        "command": "conclave.refreshSkills",
+        "title": "conclave: Refresh Installed Skills"
+      },
+      {
+        "command": "conclave.findSkills",
+        "title": "conclave: Find Skills for a Task"
       }
     ],
     "keybindings": [

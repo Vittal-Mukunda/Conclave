@@ -39,6 +39,8 @@ import { CompetenceService } from '../learn/CompetenceService';
 import { CouncilService } from '../council/CouncilService';
 import { BestOfNService } from '../bestofn/BestOfNService';
 import { SecurityService } from '../security/SecurityService';
+import { SkillStore } from '../skills/SkillStore';
+import { SkillsService } from '../skills/SkillsService';
 import { AgentService } from '../agent/AgentService';
 
 /**
@@ -64,6 +66,7 @@ export class Services implements vscode.Disposable {
   readonly competence: CompetenceService;
   readonly council: CouncilService;
   readonly bestOfN: BestOfNService;
+  readonly skills: SkillsService;
   readonly agent: AgentService;
   readonly repoMemory?: RepoMemory;
   readonly scheduler: Scheduler;
@@ -76,6 +79,7 @@ export class Services implements vscode.Disposable {
   readonly budget?: BudgetManager;
   readonly policy: CostPolicy;
   readonly banditStore?: BanditStore;
+  readonly skillStore?: SkillStore;
 
   private readonly channel: vscode.OutputChannel;
   private readonly capture: GlobalCaptureHandle;
@@ -157,6 +161,7 @@ export class Services implements vscode.Disposable {
       this.budget = new BudgetManager(this.storage.db);
       this.repoMemory = new RepoMemory(this.storage.db);
       this.banditStore = new BanditStore(this.storage.db);
+      this.skillStore = new SkillStore(this.storage.db);
       this.logger.info('storage_ready', { version: this.storage.version });
     } catch (err) {
       this.degraded.set(Capability.Storage, 'unavailable', {
@@ -238,6 +243,12 @@ export class Services implements vscode.Disposable {
     // (endogenous N, K≤8), CODING-stop on the first ladder pass. Candidate
     // authoring (the LLM sampler) lands with codegen — same flagged deviation.
     this.bestOfN = new BestOfNService(this.logger);
+    // Skills I (Phase 16): SKILL.md ingest + content-addressed index + hybrid
+    // retrieval (description-primary: embedding + BM25 + glob + trust prior),
+    // activation threshold + <=3-active token budget (SKILL-5). Invalid skills
+    // fail loudly + quarantine (SKILL-1); a remote source degrades to local
+    // (SKILL-6). Composition/injection is Phase 17; the script sandbox is Phase 18.
+    this.skills = new SkillsService(this.logger, this.errors, this.degraded, this.skillStore);
     // Agent loop (Phase 10): control FSM wiring localize -> edit -> verify with
     // checkpoint/rollback + budget guards. The router (Phase 11) names the tier
     // and the learner (Phase 12) picks the model. Codegen brain deferred.
