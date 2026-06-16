@@ -98,6 +98,10 @@
       {
         "command": "conclave.bestOfN",
         "title": "conclave: Best-of-N Selector Status"
+      },
+      {
+        "command": "conclave.toggleSensitiveRepo",
+        "title": "conclave: Toggle Sensitive-Repo Mode"
       }
     ],
     "keybindings": [

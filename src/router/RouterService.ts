@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../logging/Logger';
 import { ProviderRegistry } from '../providers/registry';
-import { Provider, ModelInfo } from '../providers/types';
+import { Provider, ModelInfo, ProviderKind } from '../providers/types';
 import { KeyStore } from '../keys/KeyStore';
 import { PricedCost } from '../cost/PricedCost';
 import { CostPolicy } from '../cost/CostPolicy';
@@ -41,6 +41,8 @@ export class RouterService {
     private readonly pricedCost: PricedCost,
     private readonly policy: CostPolicy,
     private readonly budget?: BudgetManager,
+    /** Provider-privacy gate (SEC-2). Absent = all keyed providers allowed. */
+    private readonly privacy?: { allowsProvider(providerId: string, kind: ProviderKind): boolean },
   ) {
     this.estimator = new DifficultyEstimator({
       log: (event, data) => this.logger.info(event, data),
@@ -57,6 +59,10 @@ export class RouterService {
     const out: RouterModel[] = [];
     for (const p of this.registry.list()) {
       if (!(await this.keys.hasKey(p.id))) {
+        continue;
+      }
+      // SEC-2: in Sensitive-repo mode, drop providers that may train on data.
+      if (this.privacy && !this.privacy.allowsProvider(p.id, p.kind)) {
         continue;
       }
       for (const m of p.defaultModels) {

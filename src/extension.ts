@@ -150,6 +150,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.bestOfN.statusCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.toggleSensitiveRepo',
+        guard(async () => {
+          await services?.security.toggleSensitiveRepoCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

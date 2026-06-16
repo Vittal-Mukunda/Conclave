@@ -38,6 +38,7 @@ import { BanditStore } from '../learn/BanditStore';
 import { CompetenceService } from '../learn/CompetenceService';
 import { CouncilService } from '../council/CouncilService';
 import { BestOfNService } from '../bestofn/BestOfNService';
+import { SecurityService } from '../security/SecurityService';
 import { AgentService } from '../agent/AgentService';
 
 /**
@@ -59,6 +60,7 @@ export class Services implements vscode.Disposable {
   readonly editing: EditService;
   readonly verify: VerifyService;
   readonly router: RouterService;
+  readonly security: SecurityService;
   readonly competence: CompetenceService;
   readonly council: CouncilService;
   readonly bestOfN: BestOfNService;
@@ -209,7 +211,19 @@ export class Services implements vscode.Disposable {
     // Difficulty estimator + cascade router (Phase 11): picks the cheapest tier
     // the role/difficulty allow over the keyed pool, priced by pricedCost and
     // gated by the live cost policy. A COST lever — climbs only on failure.
-    this.router = new RouterService(this.logger, registry, this.keys, this.pricedCost, this.policy, this.budget);
+    // Security & privacy hardening (Phase 15): Sensitive-repo mode + provider
+    // privacy gate (SEC-2), outbound secret redaction (SEC-1), untrusted-content
+    // fencing (SEC-3), hardened sandbox policy (SEC-5).
+    this.security = new SecurityService(this.logger, this.repoMemory);
+    this.router = new RouterService(
+      this.logger,
+      registry,
+      this.keys,
+      this.pricedCost,
+      this.policy,
+      this.budget,
+      this.security,
+    );
     // Competence learner (Phase 12): a per-workspace LinUCB bandit that picks
     // among the routed candidates from learned per-context outcomes, warm-started
     // from benchmark priors, persisted in the bandit table, and updated strongly

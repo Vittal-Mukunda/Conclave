@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 14 COMPLETE
+## Status: Phase 15 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -22,14 +22,41 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 12 | Competence learner (bandit) | ✅ complete |
 | 13 | Assignment solver + diverse council | ✅ complete |
 | 14 | Best-of-N + strong verifier-selector | ✅ complete |
-| 15 | Security & privacy hardening | ⬜ next |
-| 16 | Skills I: format/ingest/retrieval | ⬜ |
+| 15 | Security & privacy hardening | ✅ complete |
+| 16 | Skills I: format/ingest/retrieval | ⬜ next |
 | 17 | Skills II: composition/injection | ⬜ |
 | 18 | Skills III: security sandbox/marketplace | ⬜ |
 | 19 | State, crash recovery & concurrency | ⬜ |
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 15 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| SEC-1: secrets in outbound content detected + REDACTED before send | `secretScanner.test.ts` (openai/anthropic/google/github/groq/aws/slack/PEM/JWT/assignment) | ✅ |
+| SEC-1: redact only the value of `secret = "..."`, keep key name | `secretScanner.test.ts` (password assignment) | ✅ |
+| SEC-4 reinforce: clean code untouched; `containsNoSecret` assertion | `secretScanner.test.ts` (no false positives) | ✅ |
+| SEC-2: free tiers classified as training, paid APIs no-train | `privacy.test.ts` (dataPosture) | ✅ |
+| SEC-2: Sensitive-repo mode blocks training providers, keeps no-train | `privacy.test.ts` (allowsProvider); wired into `RouterService.keyedPool` | ✅ |
+| SEC-3: prompt-injection patterns flagged as high risk | `injection.test.ts` (ignore-previous / role-tag / system-prompt / exfiltrate) | ✅ |
+| SEC-3: untrusted content fenced as DATA; forged delimiter neutralised | `injection.test.ts` (wrap + breakout defang); `sanitizeUntrusted` requires confirm | ✅ |
+| SEC-5: hardened sandbox policy (no net, no host FS, caps dropped, RO root) | `sandboxPolicy.test.ts` (`DEFAULT_SANDBOX_POLICY`, `isHardened`) | ✅ |
+| SEC-5/SKILL-7: egress allowlist ALWAYS excludes provider API hosts | `sandboxPolicy.test.ts` (provider host denied even if allowlisted) | ✅ |
+| Wired: SecurityService owns Sensitive flag + privacy gate consulted by router | `Services` (security→router privacy); `SecurityService` | ✅ |
+| Host activates + toggleSensitiveRepo command registered | integration 15/15 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 344/344 |
+| `.vsix` packages | `npm run package` (595 KB, 15 files) | ✅ |
+
+**Notes:** SecretScanner complements (does not replace) the Phase 1
+`SecretRedactor` — the redactor strips *known live* keys + shapes from logs
+(SEC-4); the scanner does a broader content scan (PEM/JWT/cloud keys/secret
+assignments) on *outbound prompt material* (SEC-1). The hardened `SandboxPolicy`
+is declarative and enforced once a real container sandbox lands (Phase 9 ships a
+process sandbox, flagged degraded); `permitsEgress`/`isHardened` are the
+enforcement seam. Untrusted-content fencing (SEC-3) and outbound redaction
+(SEC-1) are callable now and plug into the prompt-assembly path with codegen.
 
 ## Phase 14 — acceptance gate (all met)
 

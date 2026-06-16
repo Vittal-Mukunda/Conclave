@@ -565,6 +565,42 @@ Pure + unit-tested; `BestOfNService` glues.
 "Best@K plateaus near oracle Pass@K → invest in the verifier, not K" is made
 operational by `selectorMiss`. No new edge-case IDs — an OR-brain layer.
 
+## Phase 15 — Security & privacy hardening
+
+The SEC-1..5 catalog made structural. Pure detectors + a thin `SecurityService`.
+
+- **SecretScanner** (`src/security/SecretScanner.ts`, SEC-1): scans *outbound
+  repo content* for credentials we've never registered — OpenAI/Anthropic/Google/
+  GitHub/Groq keys, AWS access keys, Slack tokens, PEM private-key blocks, JWTs,
+  Bearer tokens, and `secret = "…"` assignments (value-only redaction). Returns a
+  redacted copy + typed findings. Complements (not replaces) the Phase 1
+  `SecretRedactor`, which strips *known live* keys from logs (SEC-4).
+- **injection** (`src/security/injection.ts`, SEC-3): `detectInjection` flags
+  embedded-instruction payloads (ignore-previous, role tags, system-prompt
+  probes, exfiltration); `wrapUntrusted` fences repo/issue text as DATA-ONLY and
+  defangs a forged closing delimiter so content can't break out of the fence.
+  `sanitizeUntrusted` requires confirmation on high-risk content. Repo content is
+  data, never instructions.
+- **privacy** (`src/security/privacy.ts`, SEC-2): `dataPosture` classifies each
+  provider (free → trains, paid API → no-train, with overrides); `allowsProvider`
+  is the Sensitive-repo gate — in Sensitive mode only no-train providers are
+  eligible.
+- **SandboxPolicy** (`src/security/SandboxPolicy.ts`, SEC-5 + SKILL-7): the
+  hardened posture the verification sandbox must run under — `network: none`,
+  `noHostFs`, `dropCapabilities: [ALL]`, read-only root. `permitsEgress` ALWAYS
+  denies provider API hosts (`PROVIDER_API_HOSTS`) even if otherwise allowlisted,
+  closing the exfiltration channel; `isHardened` validates a policy.
+- **SecurityService** (`src/security/SecurityService.ts`): vscode glue. Owns the
+  per-workspace Sensitive flag (in repo memory, STATE-6), redacts outbound
+  content with a warning, fences untrusted content, exposes the provider-privacy
+  gate the **router consults** (`RouterService.keyedPool` drops training
+  providers in Sensitive mode), and hands out the sandbox policy. Command
+  `conclave.toggleSensitiveRepo`.
+
+The redaction (SEC-1) and fencing (SEC-3) are callable today and plug into the
+prompt-assembly path with codegen; the sandbox policy (SEC-5) enforces once a
+real container replaces the degraded process sandbox.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

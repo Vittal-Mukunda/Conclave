@@ -87,4 +87,12 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.bestOfN'), 'bestOfN not registered');
   });
+
+  it('registers the Phase 15 security command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(
+      commands.includes('conclave.toggleSensitiveRepo'),
+      'toggleSensitiveRepo not registered',
+    );
+  });
 });
