@@ -174,6 +174,18 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.skills.composeSkillsCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.scanSkills',
+        guard(async () => {
+          await services?.skills.scanSkillsCommand();
+        }),
+      ),
+      vscode.commands.registerCommand(
+        'conclave.searchSkills',
+        guard(async () => {
+          await services?.skills.searchSkillsCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

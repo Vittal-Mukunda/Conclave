@@ -106,4 +106,10 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.composeSkills'), 'composeSkills not registered');
   });
+
+  it('registers the Phase 18 skill security commands', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.scanSkills'), 'scanSkills not registered');
+    assert.ok(commands.includes('conclave.searchSkills'), 'searchSkills not registered');
+  });
 });

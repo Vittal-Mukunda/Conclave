@@ -41,6 +41,7 @@ import { BestOfNService } from '../bestofn/BestOfNService';
 import { SecurityService } from '../security/SecurityService';
 import { SkillStore } from '../skills/SkillStore';
 import { SkillsService } from '../skills/SkillsService';
+import { MarketplaceClient } from '../skills/Marketplace';
 import { AgentService } from '../agent/AgentService';
 
 /**
@@ -243,12 +244,21 @@ export class Services implements vscode.Disposable {
     // (endogenous N, K≤8), CODING-stop on the first ladder pass. Candidate
     // authoring (the LLM sampler) lands with codegen — same flagged deviation.
     this.bestOfN = new BestOfNService(this.logger);
-    // Skills I (Phase 16): SKILL.md ingest + content-addressed index + hybrid
-    // retrieval (description-primary: embedding + BM25 + glob + trust prior),
-    // activation threshold + <=3-active token budget (SKILL-5). Invalid skills
-    // fail loudly + quarantine (SKILL-1); a remote source degrades to local
-    // (SKILL-6). Composition/injection is Phase 17; the script sandbox is Phase 18.
-    this.skills = new SkillsService(this.logger, this.errors, this.degraded, this.skillStore);
+    // Skills (Phase 16-18): SKILL.md ingest + content-addressed index + hybrid
+    // retrieval (16); per-sub-agent composition + precedence/conflict resolution
+    // (17); static + supply-chain SCAN, trust tiers, allowed-tools sandbox gate,
+    // and marketplace discovery (18). Invalid skills fail loudly (SKILL-1);
+    // high-risk are quarantined (SKILL-2); community is instructions-only and
+    // popularity never grants trust (SKILL-9); a remote source degrades to local
+    // (SKILL-6).
+    this.skills = new SkillsService(
+      this.logger,
+      this.errors,
+      this.degraded,
+      this.skillStore,
+      undefined,
+      new MarketplaceClient(new FetchTransport()),
+    );
     // Agent loop (Phase 10): control FSM wiring localize -> edit -> verify with
     // checkpoint/rollback + budget guards. The router (Phase 11) names the tier
     // and the learner (Phase 12) picks the model. Codegen brain deferred.

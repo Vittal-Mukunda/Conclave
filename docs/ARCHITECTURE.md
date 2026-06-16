@@ -702,6 +702,56 @@ always-on-conventions-vs-task-skills split are realised structurally by the
 per-role `ComposedContext`; the script sandbox + `allowed-tools` enforcement +
 marketplace are Phase 18.
 
+## Phase 18 — Skills III: security scan, trust, sandbox, marketplace
+
+The final third of the Skills subsystem (docs/skills-spec.md SECURITY + INGEST).
+Downloaded skills are UNTRUSTED CODE; this layer scans them on ingest, assigns a
+trust tier, gates any execution, and adds marketplace discovery. Pure detectors +
+gate; `SkillsService` wires them into the scan-on-refresh path.
+
+> **Container deviation (deliberate, flagged):** permitted scripts must run in a
+> hardened CONTAINER. That's the same heavy dependency deferred in Phase 9, so
+> Phase 18 ships the **policy + enforcement gate** (reusing Phase 15's
+> `SandboxPolicy`/`permitsEgress`) while the real container drops in behind the
+> existing `CommandRunner` seam. The gate is honest: scripts are HITL-gated and
+> default-off for untrusted skills regardless.
+
+- **scan** (`src/skills/scan.ts`): `SkillScanner` static + supply-chain scan over
+  a skill's files — prompt-injection in instructions (reusing the Phase 15
+  `detectInjection`), secret/file access (`~/.ssh`, `.env`, `id_rsa`, AWS creds),
+  dynamic/shell exec (`eval`/`os.system`/`subprocess`/`child_process`/`pickle`),
+  outbound network calls, and **source/bytecode mismatch** (a `.pyc` with no
+  `.py` = un-auditable, likely evasion; SKILL-3). PLUGGABLE (`ScannerPlugin`) but
+  never trusted alone — a throwing plugin can't crash ingest. High risk → block.
+- **trust** (`src/skills/trust.ts`): `evaluateTrust` maps source + scan +
+  license + popularity to a tier + scripts decision. First-party (user/project)
+  is trusted; a community skill is promoted to **vetted** only by permissive
+  license + scan-clean + a popularity floor (or an explicit operator vet);
+  otherwise it stays community **instructions-only**. Popularity ALONE never
+  promotes (SKILL-9). A high-risk scan forces **quarantine** (SKILL-2).
+- **sandbox** (`src/skills/sandbox.ts`): `SkillExecutionGate` — refuses scripts
+  for instructions-only skills, enforces `allowed-tools` as a **hard ceiling**
+  (`toolAllowed` matches `Bash(git:*)`-style scopes, deny-by-default), denies
+  provider-API egress always (anti-exfiltration, via `permitsEgress`), and
+  requires HITL confirmation before the first script exec + any network/deploy/
+  commit (SKILL-7).
+- **Marketplace** (`src/skills/Marketplace.ts`): `MarketplaceClient` searches the
+  SkillsMP REST API over the injected `HttpTransport` (testable, reuses the
+  provider timeout/abort path). Listings are RANKING PRIORS ONLY — not trust, not
+  format; each result still flows through ingest → scan → trust before running.
+  Unreachable/malformed → a typed retryable SKILL-6 error.
+- **SkillsService** (`src/skills/SkillsService.ts`): `secureIngest` now runs
+  ingest → scan → trust, quarantining invalid (SKILL-1) and high-risk (SKILL-2)
+  skills and stamping the effective trust + `scriptsEnabled`. `canRun` exposes
+  the gate; `searchMarketplace` the discovery client. Commands
+  `conclave.scanSkills` + `conclave.searchSkills`.
+
+Catalog handled: SKILL-2 (malicious skill → scan blocks ingest, never auto-run),
+SKILL-3 (scanner-evading .py/.pyc mismatch + scripts-off default), SKILL-7
+(untrusted script/network → HITL + provider-API egress denied), SKILL-9
+(popularity never grants trust). SKILL-6 (marketplace unreachable → local)
+reinforced by the typed client error. The Skills subsystem (16–18) is complete.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

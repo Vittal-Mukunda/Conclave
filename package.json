@@ -114,6 +114,14 @@
       {
         "command": "conclave.composeSkills",
         "title": "conclave: Compose Skills per Sub-Agent"
+      },
+      {
+        "command": "conclave.scanSkills",
+        "title": "conclave: Scan Installed Skills"
+      },
+      {
+        "command": "conclave.searchSkills",
+        "title": "conclave: Search Skill Marketplace"
       }
     ],
     "keybindings": [

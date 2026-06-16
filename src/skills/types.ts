@@ -152,3 +152,66 @@ export interface ComposedContext {
   /** Whether permitted skills may run scripts in this role (off until Phase 18). */
   scriptsAllowed: boolean;
 }
+
+// ---- Phase 18: security scan + trust + sandbox + marketplace ----
+
+export type RiskLevel = 'none' | 'low' | 'medium' | 'high';
+
+/** One static/supply-chain scan finding on a skill. */
+export interface ScanFinding {
+  id: string;
+  severity: RiskLevel;
+  /** The folder-relative file the finding is in (or 'SKILL.md'). */
+  file: string;
+  detail: string;
+}
+
+export interface ScanResult {
+  /** Highest severity across findings. */
+  risk: RiskLevel;
+  findings: ScanFinding[];
+  /** True when nothing medium-or-higher was found (a vetting precondition). */
+  clean: boolean;
+}
+
+/** Discovery priors (ranking only — NEVER trust; SKILL-9). */
+export interface SkillStats {
+  installs?: number;
+  stars?: number;
+}
+
+/** Effective trust + whether scripts may run, with the reasons. */
+export interface TrustDecision {
+  tier: TrustTier;
+  scriptsAllowed: boolean;
+  /** High-risk scan → the skill must be quarantined, never loaded (SKILL-2). */
+  quarantine: boolean;
+  reasons: string[];
+}
+
+export type ExecKind = 'script' | 'network' | 'deploy' | 'commit';
+
+export interface ExecRequest {
+  /** The tool being invoked, e.g. 'Bash(git:commit)' or 'python'. */
+  tool: string;
+  kind: ExecKind;
+  /** Target host/URL for a network request. */
+  target?: string;
+}
+
+export interface ExecDecision {
+  allowed: boolean;
+  /** HITL must confirm before this proceeds (first exec / network / deploy / commit). */
+  requiresConfirmation: boolean;
+  reason: string;
+}
+
+/** A skill listing from a marketplace/discovery source. */
+export interface MarketplaceEntry {
+  name: string;
+  description: string;
+  source: string;
+  sourceType: SourceType;
+  license?: string;
+  stats?: SkillStats;
+}

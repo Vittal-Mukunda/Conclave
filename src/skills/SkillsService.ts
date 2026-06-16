@@ -7,8 +7,22 @@ import { Capability, DegradedModeRegistry } from '../degraded/DegradedModeRegist
 import { ingestSkill } from './ingest';
 import { SkillRetriever, RetrievalResult, RetrievalInput } from './Retriever';
 import { SkillComposer } from './Composer';
+import { SkillScanner } from './scan';
+import { evaluateTrust } from './trust';
+import { SkillExecutionGate } from './sandbox';
+import { MarketplaceClient } from './Marketplace';
 import { SkillStore } from './SkillStore';
-import { ComposedContext, Skill, SkillFolderInput, SourceType, SubAgentRole, TrustTier } from './types';
+import {
+  ComposedContext,
+  ExecDecision,
+  ExecRequest,
+  MarketplaceEntry,
+  Skill,
+  SkillFolderInput,
+  SourceType,
+  SubAgentRole,
+  TrustTier,
+} from './types';
 
 // vscode glue for the Skills subsystem (Phase 16: format / ingest / retrieval).
 // Scans the local skill roots (.conclave/skills = project, ~/.conclave/skills =
@@ -33,6 +47,8 @@ export interface RemoteSkillSource {
 export class SkillsService {
   private readonly retriever = new SkillRetriever();
   private readonly composer: SkillComposer;
+  private readonly scanner = new SkillScanner();
+  private readonly gate = new SkillExecutionGate();
   private skills: Skill[] = [];
 
   constructor(
@@ -41,6 +57,7 @@ export class SkillsService {
     private readonly degraded: DegradedModeRegistry,
     private readonly store?: SkillStore,
     private readonly remote?: RemoteSkillSource,
+    private readonly marketplace?: MarketplaceClient,
   ) {
     this.composer = new SkillComposer(logger);
     // Hydrate from the cached index so retrieval works before the first scan.
@@ -92,16 +109,9 @@ export class SkillsService {
           trust: root.trust,
           source: { source: folder.path, sourceType: root.sourceType },
         };
-        const result = ingestSkill(input);
-        if (result.ok) {
-          found.set(`${result.skill.name}\0${input.source.source}`, result.skill);
-          for (const w of result.skill.warnings) {
-            this.logger.warn('skill_warning', { skill: result.skill.name, warning: w });
-          }
-        } else {
-          // Quarantine: log + surface, never load (SKILL-1).
-          this.errors.report(result.error);
-          this.logger.warn('skill_quarantined', { dir: result.dirName, code: result.error.code });
+        const skill = this.secureIngest(input);
+        if (skill) {
+          found.set(`${skill.name}\0${input.source.source}`, skill);
         }
       }
     }
@@ -110,11 +120,9 @@ export class SkillsService {
     if (this.remote) {
       try {
         for (const folder of await this.remote.fetch()) {
-          const result = ingestSkill(folder);
-          if (result.ok) {
-            found.set(`${result.skill.name}\0${folder.source.source}`, result.skill);
-          } else {
-            this.errors.report(result.error);
+          const skill = this.secureIngest(folder);
+          if (skill) {
+            found.set(`${skill.name}\0${folder.source.source}`, skill);
           }
         }
       } catch (err) {
@@ -185,6 +193,95 @@ export class SkillsService {
     const note = overflow.length ? ` (+${overflow.length} eligible dropped by cap/budget — SKILL-5)` : '';
     void vscode.window.showInformationMessage(
       `conclave: activating ${result.active.map((s) => s.name).join(', ')}${note}.`,
+    );
+  }
+
+  /**
+   * Ingest + SCAN + trust-evaluate one folder. Returns the loadable skill, or
+   * null when quarantined (SKILL-1 invalid / SKILL-2 high-risk). The skill's
+   * effective trust + scriptsEnabled come from the trust decision, so community
+   * skills land instructions-only and popularity never promotes (SKILL-9).
+   */
+  private secureIngest(input: SkillFolderInput, license?: string): Skill | null {
+    const result = ingestSkill(input);
+    if (!result.ok) {
+      this.errors.report(result.error); // SKILL-1
+      this.logger.warn('skill_quarantined', { dir: result.dirName, code: result.error.code });
+      return null;
+    }
+    const scan = this.scanner.scan(input.files);
+    const decision = evaluateTrust({
+      declaredTier: input.trust,
+      scan,
+      license: result.skill.frontmatter.license ?? license,
+    });
+    if (decision.quarantine) {
+      this.logger.warn('skill_quarantined', { skill: result.skill.name, risk: scan.risk, code: 'SKILL-2' });
+      this.errors.report(
+        new ConclaveError({
+          category: 'skill',
+          code: 'SKILL-2',
+          title: 'A skill was blocked by the security scan',
+          detail: `Skill "${result.skill.name}" was quarantined and will not run: ${decision.reasons.join('; ')}.`,
+          recoveryActions: [{ label: 'View skill docs', kind: 'docs', command: 'conclave.reportIssue' }],
+        }),
+      );
+      return null;
+    }
+    for (const w of result.skill.warnings) {
+      this.logger.warn('skill_warning', { skill: result.skill.name, warning: w });
+    }
+    return { ...result.skill, trust: decision.tier, scriptsEnabled: decision.scriptsAllowed };
+  }
+
+  /** Decide whether a skill may perform an action (allowed-tools ceiling + HITL + egress; SKILL-7). */
+  canRun(skill: Skill, req: ExecRequest): ExecDecision {
+    return this.gate.decide(skill, req);
+  }
+
+  /** Search the marketplace for skills (discovery prior only — not trust; SKILL-9). */
+  async searchMarketplace(query: string): Promise<MarketplaceEntry[]> {
+    if (!this.marketplace) {
+      return [];
+    }
+    return this.marketplace.search(query);
+  }
+
+  /** `conclave.searchSkills` — discovery search; degrades cleanly when unreachable (SKILL-6). */
+  async searchSkillsCommand(): Promise<void> {
+    if (!this.marketplace) {
+      void vscode.window.showInformationMessage(
+        'conclave: no marketplace configured. Install skills locally under .conclave/skills/.',
+      );
+      return;
+    }
+    const query = await vscode.window.showInputBox({
+      title: 'conclave — search skill marketplace',
+      prompt: 'Search terms; results are pointers — each is scanned + trust-checked before it can run.',
+      ignoreFocusOut: true,
+    });
+    if (!query) {
+      return;
+    }
+    try {
+      const entries = await this.searchMarketplace(query);
+      void vscode.window.showInformationMessage(
+        entries.length
+          ? `conclave: ${entries.length} skill(s): ${entries.slice(0, 8).map((e) => e.name).join(', ')}. Untrusted until scanned + vetted.`
+          : 'conclave: no marketplace results.',
+      );
+    } catch (err) {
+      this.errors.report(err); // SKILL-6
+    }
+  }
+
+  /** `conclave.scanSkills` — rescan installed skills + report the risk posture. */
+  async scanSkillsCommand(): Promise<void> {
+    await this.refresh();
+    const runnable = this.skills.filter((s) => s.scriptsEnabled).length;
+    void vscode.window.showInformationMessage(
+      `conclave: ${this.skills.length} skill(s) loaded; ${runnable} may run scripts (HITL-gated), ` +
+        `${this.skills.length - runnable} instructions-only. High-risk skills are quarantined (SKILL-2).`,
     );
   }
 

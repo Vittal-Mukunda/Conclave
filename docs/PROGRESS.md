@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 17 COMPLETE
+## Status: Phase 18 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -25,11 +25,38 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 15 | Security & privacy hardening | ✅ complete |
 | 16 | Skills I: format/ingest/retrieval | ✅ complete |
 | 17 | Skills II: composition/injection | ✅ complete |
-| 18 | Skills III: security sandbox/marketplace | ⬜ next |
-| 19 | State, crash recovery & concurrency | ⬜ |
+| 18 | Skills III: security sandbox/marketplace | ✅ complete |
+| 19 | State, crash recovery & concurrency | ⬜ next |
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 18 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Static scan flags secret/file access, dynamic/shell exec, outbound network | `skillsScan.test.ts` (secret-file-access/dangerous-exec high; outbound-network medium) | ✅ |
+| SKILL-2: prompt-injection in instructions → high-risk → blocks ingest | `skillsScan.test.ts` (prompt-injection high); `skillsTrust.test.ts` (high → quarantine) | ✅ |
+| SKILL-3: .py/.pyc source-bytecode mismatch detected; scanner pluggable but not trusted alone | `skillsScan.test.ts` (mismatch + bytecode-present; plugin merged; throwing plugin safe) | ✅ |
+| Trust tiers: first-party trusted; community instructions-only by default | `skillsTrust.test.ts` (project scripts-on; community license-only scripts-off) | ✅ |
+| Vetted only via permissive license + scan-clean + popularity floor (or operator vet) | `skillsTrust.test.ts` (Apache+popular→vetted; operatorVetted→vetted) | ✅ |
+| SKILL-9: popularity NEVER grants trust | `skillsTrust.test.ts` (popular+unlicensed stays community, scripts off, reason) | ✅ |
+| allowed-tools enforced as a HARD CEILING (deny-by-default; scoped globs) | `skillsSandbox.test.ts` (toolAllowed; outside-ceiling denied) | ✅ |
+| SKILL-7: HITL confirm before first script exec + any network/deploy/commit | `skillsSandbox.test.ts` (first-exec confirm; deploy/commit confirm) | ✅ |
+| SKILL-7: provider-API egress always denied (anti-exfiltration); instructions-only never executes | `skillsSandbox.test.ts` (provider host denied; allowlisted host confirm; instructions-only refused) | ✅ |
+| Marketplace discovery over injected transport; listings are priors only | `skillsMarketplace.test.ts` (parse skills/array; category/sortBy/Bearer) | ✅ |
+| SKILL-6: marketplace unreachable/non-OK/malformed → typed retryable error | `skillsMarketplace.test.ts` (503 / transport fail / bad JSON → SKILL-6) | ✅ |
+| Wired: secureIngest = ingest→scan→trust quarantines high-risk; canRun gate; search | `SkillsService` (secureIngest/canRun/searchMarketplace); `Services` (MarketplaceClient) | ✅ |
+| Host activates + scanSkills/searchSkills commands registered | integration 18/18 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 414/414 |
+| `.vsix` packages | `npm run package` (608 KB, 15 files) | ✅ |
+
+**Notes:** the hardened-container runner is deferred (same flagged deviation as
+Phase 9's process sandbox) — the `SandboxPolicy` + `SkillExecutionGate` are the
+enforcement seam, and scripts are HITL-gated + default-off for untrusted skills
+regardless. The marketplace folder DOWNLOAD/install is the deferred heavy piece;
+search + the ingest→scan→trust pipeline it feeds are complete. The Skills
+subsystem (Phases 16–18) is now complete.
 
 ## Phase 17 — acceptance gate (all met)
 
