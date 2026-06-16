@@ -120,6 +120,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await services?.verify.runVerifyCommand();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.runAgent',
+        guard(async () => {
+          await services?.agent.runAgentCommand();
+        }),
+      ),
     );
 
     services.connectivity.start();

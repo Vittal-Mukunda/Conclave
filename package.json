@@ -78,6 +78,10 @@
       {
         "command": "conclave.verify",
         "title": "conclave: Verify Changes"
+      },
+      {
+        "command": "conclave.runAgent",
+        "title": "conclave: Run Agent"
       }
     ],
     "keybindings": [

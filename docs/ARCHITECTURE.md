@@ -356,6 +356,46 @@ evidence caps the score and always raises a visible flag.
 Catalog handled: VER-1, VER-2, VER-3, VER-4, VER-5, VER-6 (consumes Phase 8 repo
 memory), VER-9, VER-10. VER-7/VER-8 are deferred to a real container runner.
 
+## Phase 10 — Agent loop
+
+The conductor. It ties the previous three layers into one bounded, safe cycle:
+**plan -> checkpoint -> act -> verify -> decide**. Its job is not cleverness but
+*safety* — it can never run away, never commit a regression, and always ends in
+an honest terminal state.
+
+> **Engine deviation (deliberate, flagged):** LLM-driven code generation (drafting
+> the actual edits) lands in later phases (council + best-of-N). Phase 10 ships
+> the full control FSM with all safety rails wired to real services; the default
+> host planner localizes the target (Phase 7) and **hands off cleanly** with an
+> honest reason instead of fabricating edits. The codegen "brain" drops into the
+> `Planner`/`Actor` seam later with no change to the loop.
+
+- **types** (`src/agent/types.ts`): `AgentTask`, `PlanDecision`
+  (plan/ambiguous/impossible/handoff), `VerifyOutcome`, `IterationRecord`,
+  `LoopResult` (status + reason), `LoopConfig`, and the injected step interfaces
+  `Planner` / `Actor` / `Verifier` / `Checkpointer` / `BudgetGate`.
+- **AgentLoop** (`src/agent/AgentLoop.ts`): pure FSM. Each iteration: budget gate
+  (LOOP-7 stop-before-spend), plan (ambiguous -> LOOP-5 one question;
+  impossible -> LOOP-4 scoped suggestion), oscillation check on plan signature
+  (LOOP-1), checkpoint, act, verify. A passing verdict over the accept threshold
+  is success; a verdict that *regresses* below the best-so-far is rolled back to
+  the checkpoint (LOOP-2); no improvement for `noProgressLimit` iterations hands
+  off (LOOP-3). Exhausting the cap with progress reports `partial` honestly
+  (LOOP-6). A failed/hallucinated edit is verified as failure, never committed
+  (LOOP-9).
+- **AgentService** (`src/agent/AgentService.ts`): vscode glue. Wires the steps to
+  real services — planner=CodeIntel localize, checkpointer=EditService
+  (checkpoint + rollback), verifier=VerifyService, budget gate=BudgetManager —
+  and surfaces the terminal `LoopResult`. Command `conclave.runAgent`.
+
+The two invariants are structural: (1) the loop is hard-capped by
+`maxIterations` so it physically cannot spin forever, and (2) acceptance is
+gated on a verified confidence threshold while regressions auto-rollback, so a
+run can only ever leave the tree better or unchanged — never worse.
+
+Catalog handled: LOOP-1, LOOP-2, LOOP-3, LOOP-4, LOOP-5, LOOP-6, LOOP-7, LOOP-9
+(LOOP-8 context compaction is a Phase 19 concern).
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

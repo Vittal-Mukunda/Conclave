@@ -33,6 +33,7 @@ import { CodeIntelService } from '../codeintel/CodeIntelService';
 import { RepoMemory } from '../editing/RepoMemory';
 import { EditService } from '../editing/EditService';
 import { VerifyService } from '../verify/VerifyService';
+import { AgentService } from '../agent/AgentService';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -52,6 +53,7 @@ export class Services implements vscode.Disposable {
   readonly codeIntel: CodeIntelService;
   readonly editing: EditService;
   readonly verify: VerifyService;
+  readonly agent: AgentService;
   readonly repoMemory?: RepoMemory;
   readonly scheduler: Scheduler;
   readonly storage?: Storage;
@@ -193,6 +195,9 @@ export class Services implements vscode.Disposable {
     // Verification ladder + sandbox (Phase 9). Marks Sandbox degraded (process,
     // not container). Reuses the remembered test command (VER-6) from repo memory.
     this.verify = new VerifyService(this.degraded, this.logger, this.repoMemory);
+    // Agent loop (Phase 10): control FSM wiring localize -> edit -> verify with
+    // checkpoint/rollback + budget guards. Codegen brain deferred to later phases.
+    this.agent = new AgentService(this.logger, this.codeIntel, this.editing, this.verify, this.budget);
 
     // Live capacity probing: startup pass + hourly, only for keyed providers.
     if (capability) {

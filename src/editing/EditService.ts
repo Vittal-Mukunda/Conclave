@@ -124,6 +124,11 @@ export class EditService {
     return mgr.before(label);
   }
 
+  /** Restore the tree to a checkpoint (EDIT-7 / LOOP-2 auto-rollback). */
+  async rollback(ref: CheckpointRef): Promise<void> {
+    await this.manager()?.rollback(ref);
+  }
+
   private manager(): CheckpointManager | undefined {
     const root = this.root();
     if (!root) {

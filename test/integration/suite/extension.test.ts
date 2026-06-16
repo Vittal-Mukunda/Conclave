@@ -59,4 +59,9 @@ describe('conclave extension', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes('conclave.verify'), 'verify not registered');
   });
+
+  it('registers the Phase 10 agent command', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('conclave.runAgent'), 'runAgent not registered');
+  });
 });

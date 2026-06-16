@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 9 COMPLETE
+## Status: Phase 10 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -17,8 +17,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 7 | Code intelligence + localization | ✅ complete |
 | 8 | Editing + git checkpoints + repo memory | ✅ complete |
 | 9 | Verification ladder + sandbox | ✅ complete |
-| 10 | Agent loop | ⬜ next |
-| 11 | Difficulty estimator + cascade router | ⬜ |
+| 10 | Agent loop | ✅ complete |
+| 11 | Difficulty estimator + cascade router | ⬜ next |
 | 12 | Competence learner (bandit) | ⬜ |
 | 13 | Assignment solver + diverse council | ⬜ |
 | 14 | Best-of-N + strong verifier-selector | ⬜ |
@@ -30,6 +30,26 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 10 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| plan -> checkpoint -> act -> verify -> decide, bounded by iteration cap | `agentLoop.test.ts` (success path; checkpoint before act) | ✅ |
+| Accept only a passing verdict that clears the confidence threshold | `agentLoop.test.ts` (success at 0.9; partial when never accepted) | ✅ |
+| LOOP-1: oscillation -> detect + cap + HANDOFF | `agentLoop.test.ts` (repeated signature -> oscillation) | ✅ |
+| LOOP-2: makes it worse -> checkpoint + auto-rollback | `agentLoop.test.ts` (regression -> rollback to checkpoint) | ✅ |
+| LOOP-3: stuck -> clean HANDOFF | `agentLoop.test.ts` (no-progress limit -> handoff) | ✅ |
+| LOOP-4: impossible/out-of-scope -> explain + scoped suggestion | `agentLoop.test.ts` (impossible -> blocked + suggestion) | ✅ |
+| LOOP-5: ambiguous -> ONE clarifying question BEFORE planning | `agentLoop.test.ts` (ambiguous -> needs-clarification, never acts) | ✅ |
+| LOOP-6: partial success -> report honestly | `agentLoop.test.ts` (progress but unaccepted -> partial) | ✅ |
+| LOOP-7: runaway cost -> budget cap -> stop + handoff | `agentLoop.test.ts` (closed gate -> handoff before acting) | ✅ |
+| LOOP-9: hallucinated edit caught by verifier, not committed | `agentLoop.test.ts` (failed act -> verified failure, not pass) | ✅ |
+| Loop never commits a regression / leaves tree worse | rollback-on-regression + accept-threshold gate | ✅ |
+| Wired to real services (localize/edit+checkpoint/verify/budget) | `AgentService` (planner=codeIntel, checkpointer=editing, verifier=verify, gate=budget) | ✅ |
+| Host activates + runAgent command registered | integration 10/10 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 227/227 |
+| `.vsix` packages | `npm run package` (582 KB, 15 files) | ✅ |
 
 ## Phase 9 — acceptance gate (all met)
 
