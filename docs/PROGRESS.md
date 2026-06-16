@@ -3,15 +3,15 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 2 COMPLETE
+## Status: Phase 3 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
 | 0 | Foundation & extension skeleton | ✅ complete |
 | 1 | Error & Resilience Framework | ✅ complete |
 | 2 | Provider abstraction + key storage | ✅ complete |
-| 3 | Rate-limit-aware scheduler | ⬜ next |
-| 4 | Capability & quota registry + cost meter | ⬜ |
+| 3 | Rate-limit-aware scheduler | ✅ complete |
+| 4 | Capability & quota registry + cost meter | ⬜ next |
 | 5 | Shadow-price engine + budget/spend control | ⬜ |
 | 6 | Onboarding wizard & first-run | ⬜ |
 | 7 | Code intelligence + localization | ⬜ |
@@ -30,6 +30,24 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 3 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Buckets never exceed limits in any window (fake clock) | `slidingWindow.test.ts`, `accountLimiter.test.ts` | ✅ |
+| Bursts queue + drain | `scheduler.test.ts` (9 jobs / rpm 3, window invariant holds) | ✅ |
+| Backoff bounded + jittered, honors Retry-After | `backoff.test.ts` | ✅ |
+| Breaker opens + recovers (PROV-3) | `circuitBreaker.test.ts`, `scheduler.test.ts` | ✅ |
+| 429 storm + bursty = zero violations, full recovery, no lost/dup (PROV-1) | `scheduler.test.ts` (each job runs exactly twice: fail once, succeed once) | ✅ |
+| ALL-throttled -> queued + PROV-2 report w/ countdown + Add key/Add paid (PROV-2) | `scheduler.test.ts` | ✅ |
+| Concurrent race = no double-spend (PROV-14) | `scheduler.test.ts` (20 concurrent / rpm 5, each runs once) | ✅ |
+| Failover across pooled accounts (PROV-15) | `scheduler.test.ts` (both accounts carry load) | ✅ |
+| Offline queued resume (SETUP-8) | network → SETUP-8 mapping + connectivity queue (Phase 1) | ✅ |
+| LLMClient callable only via scheduler | `ProviderService` routes all calls through `scheduler.submit` | ✅ |
+| Host activates with scheduler wired | integration 5/5 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 98/98 |
+| `.vsix` packages | `npm run package` (23.6 KB) | ✅ |
 
 ## Phase 2 — acceptance gate (all met)
 

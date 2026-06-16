@@ -13,6 +13,12 @@ import { LLMClient } from '../providers/LLMClient';
 import { ProviderService } from '../providers/ProviderService';
 import { FetchTransport } from '../providers/http';
 import { KeyManager } from '../keys/KeyManager';
+import { Scheduler } from '../scheduler/Scheduler';
+import { RealClock } from '../scheduler/clock';
+import { AccountLimiter } from '../scheduler/AccountLimiter';
+import { CircuitBreaker } from '../scheduler/CircuitBreaker';
+import { defaultLimitsFor } from '../scheduler/rateLimits';
+import { Account } from '../scheduler/types';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -28,6 +34,7 @@ export class Services implements vscode.Disposable {
   readonly keys: KeyStore;
   readonly providers: ProviderService;
   readonly keyManager: KeyManager;
+  readonly scheduler: Scheduler;
 
   private readonly channel: vscode.OutputChannel;
   private readonly capture: GlobalCaptureHandle;
@@ -72,7 +79,29 @@ export class Services implements vscode.Disposable {
       redactor: this.redactor,
       logger: this.logger,
     });
-    this.providers = new ProviderService(registry, client, this.keys);
+
+    // Rate-limit-aware scheduler: one default account per provider for now
+    // (Phase 21 pools multiple). Every provider call is funneled through it.
+    const accounts: Account[] = registry.list().map((p) => ({
+      id: `${p.id}:default`,
+      providerId: p.id,
+      limiter: new AccountLimiter(defaultLimitsFor(p)),
+      breaker: new CircuitBreaker(5, 30_000),
+      weight: 1,
+      available: true,
+      cooldownUntil: 0,
+    }));
+    this.scheduler = new Scheduler({
+      clock: new RealClock(),
+      accounts,
+      errors: this.errors,
+      logger: this.logger,
+    });
+    this.scheduler.onThrottled((report) => {
+      this.logger.warn('scheduler_throttled', { code: report.code, retryAfterMs: report.retryAfterMs });
+    });
+
+    this.providers = new ProviderService(registry, this.scheduler, client, this.keys);
     this.keyManager = new KeyManager(this.providers, this.errors);
 
     this.capture = installGlobalCapture(this.errors, (report) => this.onFatal(report));

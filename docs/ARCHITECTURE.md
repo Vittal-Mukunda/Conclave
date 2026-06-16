@@ -94,6 +94,37 @@ SecretStorage + dialogs are the glue.
 
 Catalog handled: SETUP-2/3/4/10, PROV-5/6/8/9/10/11/12/13, SEC-4. Command: `conclave.manageKeys`.
 
+## Phase 3 — Rate-limit-aware scheduler
+
+The single choke point that makes an over-limit issuance **physically impossible**. Fully
+deterministic via an injected `Clock` (`RealClock` in prod, `ManualClock` in tests).
+
+- **SlidingWindowLimiter** (`src/scheduler/SlidingWindowLimiter.ts`): strict sliding window — sum of
+  recorded amounts in ANY window ≤ limit (stricter than a token bucket, which can admit 2× across a
+  boundary). Used for RPM/TPM/RPD/TPD. `timeUntilAvailable` drives wake scheduling.
+- **AccountLimiter** (`src/scheduler/AccountLimiter.ts`): combines the request + token windows for
+  one account. `tryAcquire` is **atomic** (check-all-then-record-all, no await between) → no race /
+  double-spend on single-threaded JS.
+- **CircuitBreaker** (`src/scheduler/CircuitBreaker.ts`): K failures → open → half-open (one probe)
+  → closed/re-open. `peekAvailable`/`confirmDispatch` split so the dispatcher checks before
+  reserving the single probe.
+- **backoff** (`src/scheduler/backoff.ts`): bounded jittered exponential + `parseRetryAfterMs`
+  (seconds or HTTP-date). `Retry-After` flows from the 429 response → `HttpResponse.header()` →
+  `mapHttpError` → `ConclaveError.retryAfterMs` → scheduler cooldown.
+- **Scheduler** (`src/scheduler/Scheduler.ts`): async priority queue; picks the eligible pooled
+  account with the most remaining capacity; dispatches only after `tryAcquire`; classifies failures
+  (rate-limit → cooldown, outage → breaker+backoff, account-dead → fail over, request-bad → fail
+  over); requeues within attempt/wall-clock budget; one `clock.setTimeout` wake at the soonest
+  capacity/cooldown/breaker time. When all accounts are throttled it **queues** the job and emits a
+  PROV-2 ErrorReport (countdown + "Add key"/"Add paid"), resuming automatically.
+
+Wiring: `ProviderService.chat`/`testConnection` now submit through the scheduler — the LLMClient is
+only invoked inside a scheduled `run` after capacity is acquired ("callable ONLY via scheduler").
+`Services` builds one default `Account` per provider (`defaultLimitsFor`, breaker 5/30s).
+
+Catalog handled: PROV-1/2/3/4/14/15, SETUP-8. Invariant enforced: no call exceeds a live
+RPM/TPM/RPD limit.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:

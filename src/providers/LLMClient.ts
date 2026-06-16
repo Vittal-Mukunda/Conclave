@@ -10,6 +10,7 @@ import {
   streamDroppedError,
 } from './errors';
 import { estimateMessagesTokens, estimateTokens } from './tokenEstimate';
+import { parseRetryAfterMs } from '../scheduler/backoff';
 import { ChatOptions, ChatRequest, ChatResponse, FinishReason, Provider } from './types';
 
 export type KeyProvider = (providerId: string) => Promise<string | undefined>;
@@ -72,7 +73,9 @@ export class LLMClient {
 
     if (!res.ok) {
       const body = await safeText(res);
-      throw mapHttpError(res.status, provider, body);
+      const retryAfterMs =
+        res.status === 429 ? parseRetryAfterMs(res.header('retry-after'), this.now()) : undefined;
+      throw mapHttpError(res.status, provider, body, retryAfterMs);
     }
 
     return stream

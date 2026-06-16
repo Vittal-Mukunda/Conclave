@@ -36,7 +36,12 @@ export function mapTransportError(err: TransportError, provider: Provider): Conc
 }
 
 /** Non-2xx HTTP status -> typed error. `body` is provider error text (redacted later). */
-export function mapHttpError(status: number, provider: Provider, body = ''): ConclaveError {
+export function mapHttpError(
+  status: number,
+  provider: Provider,
+  body = '',
+  retryAfterMs?: number,
+): ConclaveError {
   const low = body.toLowerCase();
 
   if (status === 401 || status === 403) {
@@ -96,6 +101,7 @@ export function mapHttpError(status: number, provider: Provider, body = ''): Con
       detail: 'Too many requests right now. The scheduler will back off and retry.',
       recoveryActions: [WAIT, ADD_PROVIDER],
       canRetry: true,
+      retryAfterMs,
     });
   }
 

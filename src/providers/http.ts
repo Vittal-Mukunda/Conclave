@@ -16,6 +16,8 @@ export interface HttpResponse {
   json(): Promise<unknown>;
   /** Decoded text lines (used for Server-Sent-Events streaming). */
   lines(): AsyncIterable<string>;
+  /** Response header lookup (case-insensitive), e.g. 'retry-after'. */
+  header(name: string): string | undefined;
 }
 
 export interface SendOptions {
@@ -92,6 +94,9 @@ function wrapResponse(res: Response, timer: ReturnType<typeof setTimeout>): Http
   return {
     status: res.status,
     ok: res.ok,
+    header(name: string) {
+      return res.headers.get(name) ?? undefined;
+    },
     async text() {
       try {
         return await res.text();

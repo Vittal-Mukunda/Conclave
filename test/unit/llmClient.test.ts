@@ -12,13 +12,13 @@ const anthropic = registry.get('anthropic')!;
 
 const REQ: ChatRequest = { model: 'm', messages: [{ role: 'user', content: 'hi' }] };
 
-function jsonRes(status: number, body: unknown): HttpResponse {
+function jsonRes(status: number, body: unknown, headers: Record<string, string> = {}): HttpResponse {
   return {
     status,
     ok: status >= 200 && status < 300,
+    header: (n) => headers[n.toLowerCase()],
     text: async () => (typeof body === 'string' ? body : JSON.stringify(body)),
     json: async () => body,
-    // eslint-disable-next-line require-yield
     async *lines() {
       return;
     },
@@ -29,6 +29,7 @@ function malformedRes(): HttpResponse {
   return {
     status: 200,
     ok: true,
+    header: () => undefined,
     text: async () => '<<garbage',
     json: async () => {
       throw new Error('Unexpected token');
@@ -43,6 +44,7 @@ function streamRes(lines: string[]): HttpResponse {
   return {
     status: 200,
     ok: true,
+    header: () => undefined,
     text: async () => '',
     json: async () => {
       throw new Error('not json');

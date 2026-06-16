@@ -19,6 +19,7 @@ export interface ReportContext {
   recoveryActions?: RecoveryAction[];
   canRetry?: boolean;
   fallbackApplied?: string;
+  retryAfterMs?: number;
 }
 
 interface NormalizedError {
@@ -31,6 +32,7 @@ interface NormalizedError {
   recoveryActions: RecoveryAction[];
   canRetry?: boolean;
   fallbackApplied?: string;
+  retryAfterMs?: number;
 }
 
 export type ReportListener = (report: ErrorReport) => void;
@@ -93,6 +95,7 @@ export class ErrorService {
         recoveryActions: [...err.recoveryActions],
         canRetry: err.canRetry,
         fallbackApplied: err.fallbackApplied,
+        retryAfterMs: err.retryAfterMs,
       };
     }
     if (err instanceof Error) {
@@ -138,6 +141,7 @@ export class ErrorService {
       recoveryActions: actions,
       canRetry: ctx.canRetry ?? base.canRetry ?? false,
       fallbackApplied: ctx.fallbackApplied ?? base.fallbackApplied,
+      retryAfterMs: ctx.retryAfterMs ?? base.retryAfterMs,
     };
   }
 

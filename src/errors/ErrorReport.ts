@@ -44,6 +44,8 @@ export interface ErrorReport {
   canRetry: boolean;
   /** Set when we degraded instead of failing, describing what changed. */
   fallbackApplied?: string;
+  /** For rate-limit/throttle errors: ms until capacity is expected to free. */
+  retryAfterMs?: number;
 }
 
 /** Universal last-resort action present on every otherwise-actionless report. */
@@ -63,6 +65,7 @@ export interface ConclaveErrorInit {
   recoveryActions?: RecoveryAction[];
   canRetry?: boolean;
   fallbackApplied?: string;
+  retryAfterMs?: number;
 }
 
 /**
@@ -79,6 +82,7 @@ export class ConclaveError extends Error {
   readonly recoveryActions: RecoveryAction[];
   readonly canRetry: boolean;
   readonly fallbackApplied?: string;
+  readonly retryAfterMs?: number;
 
   constructor(init: ConclaveErrorInit) {
     super(init.title);
@@ -92,6 +96,7 @@ export class ConclaveError extends Error {
     this.recoveryActions = init.recoveryActions ?? [];
     this.canRetry = init.canRetry ?? false;
     this.fallbackApplied = init.fallbackApplied;
+    this.retryAfterMs = init.retryAfterMs;
   }
 }
 
