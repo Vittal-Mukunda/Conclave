@@ -1,0 +1,74 @@
+{
+  "name": "conclave",
+  "displayName": "conclave",
+  "description": "Multi-model AI coding agent that orchestrates free and paid LLM APIs into an agentic coding loop.",
+  "version": "0.0.1",
+  "publisher": "conclave",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Programming Languages",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "conclave",
+          "title": "conclave",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "conclave": [
+        {
+          "type": "webview",
+          "id": "conclave.panel",
+          "name": "conclave"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "conclave.openPanel",
+        "title": "conclave: Open Panel"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "conclave.openPanel",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "vitest run",
+    "pretest:integration": "tsc -p tsconfig.test.json",
+    "test:integration": "node ./out/test/integration/runTest.js",
+    "test": "npm run test:unit",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.20.2",
+    "glob": "^10.3.10",
+    "mocha": "^10.4.0",
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.8"
+  }
+}

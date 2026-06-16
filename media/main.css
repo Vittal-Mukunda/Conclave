@@ -1,0 +1,47 @@
+/* Uses VS Code theme variables so the panel matches the user's theme. */
+body {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  padding: 12px;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+h1 {
+  font-size: 1.4em;
+  margin: 0;
+}
+
+.tagline {
+  margin: 0;
+  opacity: 0.8;
+}
+
+button {
+  align-self: flex-start;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  padding: 6px 14px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+#status {
+  font-family: var(--vscode-editor-font-family, monospace);
+  opacity: 0.9;
+}

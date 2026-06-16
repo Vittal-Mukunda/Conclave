@@ -1,0 +1,8 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- council: three nodes converging on one -->
+  <circle cx="6" cy="6" r="2.2"/>
+  <circle cx="6" cy="18" r="2.2"/>
+  <circle cx="18" cy="12" r="2.6"/>
+  <path d="M8 7.2 L15.6 11"/>
+  <path d="M8 16.8 L15.6 13"/>
+</svg>
