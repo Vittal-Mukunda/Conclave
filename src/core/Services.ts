@@ -24,6 +24,10 @@ import { CapabilityRegistry } from '../capability/CapabilityRegistry';
 import { ProbeService } from '../capability/ProbeService';
 import { TelemetryStore, CallRecord } from '../telemetry/TelemetryStore';
 import { CostCalculator } from '../cost/CostCalculator';
+import { ShadowPriceEngine } from '../cost/ShadowPriceEngine';
+import { PricedCost } from '../cost/PricedCost';
+import { BudgetManager } from '../cost/BudgetManager';
+import { CostPolicy } from '../cost/CostPolicy';
 
 /**
  * Constructs and owns the resilience services and wires them to VS Code (output
@@ -44,6 +48,10 @@ export class Services implements vscode.Disposable {
   readonly capability?: CapabilityRegistry;
   readonly telemetry?: TelemetryStore;
   readonly cost: CostCalculator;
+  readonly shadow: ShadowPriceEngine;
+  readonly pricedCost: PricedCost;
+  readonly budget?: BudgetManager;
+  readonly policy: CostPolicy;
 
   private readonly channel: vscode.OutputChannel;
   private readonly capture: GlobalCaptureHandle;
@@ -115,11 +123,14 @@ export class Services implements vscode.Disposable {
     // Persistence layer: capability/quota registry + telemetry + cost meter.
     // Degrades (does not crash) if the storage engine cannot open (STATE-4).
     this.cost = new CostCalculator(registry);
+    this.shadow = new ShadowPriceEngine();
+    this.pricedCost = new PricedCost(this.cost, this.shadow);
     try {
       this.storage = Storage.open(context.globalStorageUri.fsPath);
       this.capability = new CapabilityRegistry(this.storage.db);
       this.capability.seed(registry.list());
       this.telemetry = new TelemetryStore(this.storage.db);
+      this.budget = new BudgetManager(this.storage.db);
       this.logger.info('storage_ready', { version: this.storage.version });
     } catch (err) {
       this.degraded.set(Capability.Storage, 'unavailable', {
@@ -129,8 +140,12 @@ export class Services implements vscode.Disposable {
       this.errors.report(err, { category: 'state', code: 'STATE-4' });
     }
 
+    // Cost mode defaults to free-only; restored from persisted budget when present.
+    this.policy = new CostPolicy(this.budget?.state().mode ?? 'free-only');
+
     const capability = this.capability;
     const telemetry = this.telemetry;
+    const budget = this.budget;
     const observer =
       capability && telemetry
         ? (rec: CallRecord) => {
@@ -141,6 +156,18 @@ export class Services implements vscode.Disposable {
               latencyMs: rec.latencyMs,
               tokensOut: rec.tokensOut,
             });
+            // Fold real paid spend into the budget; warn once per threshold (COST-2).
+            if (budget && rec.costUsd > 0) {
+              const { warn } = budget.record(rec.costUsd);
+              if (warn !== undefined) {
+                const report = budget.warnReport(warn);
+                this.logger.warn('budget_threshold', { level: warn, code: report.code });
+                void vscode.window.showWarningMessage(
+                  report.title,
+                  ...report.recoveryActions.map((a) => a.label),
+                );
+              }
+            }
           }
         : undefined;
 
@@ -176,6 +203,35 @@ export class Services implements vscode.Disposable {
 
   showOutput(): void {
     this.channel.show(true);
+  }
+
+  /** Cost-mode + spend-cap dialog (conclave.setBudget). */
+  async manageBudget(): Promise<void> {
+    if (!this.budget) {
+      void vscode.window.showWarningMessage('conclave: budget controls are unavailable (storage is off).');
+      return;
+    }
+    const state = this.budget.state();
+    const modePick = await vscode.window.showQuickPick(
+      [
+        { label: 'Free only', mode: 'free-only' as const, description: '$0 — paid models never used' },
+        { label: 'Free first', mode: 'free-first' as const, description: 'free, paid spillover within cap' },
+        { label: 'Best quality', mode: 'best-quality' as const, description: 'free + paid within cap' },
+      ],
+      { placeHolder: `Cost mode (current: ${state.mode})` },
+    );
+    if (modePick) {
+      this.budget.setMode(modePick.mode);
+      this.policy.mode = modePick.mode;
+    }
+    const capInput = await vscode.window.showInputBox({
+      prompt: 'Spend cap in USD (blank = no cap)',
+      value: state.capUsd?.toString() ?? '',
+      validateInput: (v) => (v === '' || /^\d+(\.\d+)?$/.test(v) ? undefined : 'Enter a number or leave it blank'),
+    });
+    if (capInput !== undefined) {
+      this.budget.setCap(capInput === '' ? null : Number(capInput));
+    }
   }
 
   private onFatal(report: ErrorReport): void {

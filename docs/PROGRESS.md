@@ -3,7 +3,7 @@
 Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/edge-cases.md`,
 `docs/skills-spec.md`, then continue the next phase.
 
-## Status: Phase 4 COMPLETE
+## Status: Phase 5 COMPLETE
 
 | Phase | Title | State |
 |------:|-------|-------|
@@ -12,8 +12,8 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 2 | Provider abstraction + key storage | ✅ complete |
 | 3 | Rate-limit-aware scheduler | ✅ complete |
 | 4 | Capability & quota registry + cost meter | ✅ complete |
-| 5 | Shadow-price engine + budget/spend control | ⬜ next |
-| 6 | Onboarding wizard & first-run | ⬜ |
+| 5 | Shadow-price engine + budget/spend control | ✅ complete |
+| 6 | Onboarding wizard & first-run | ⬜ next |
 | 7 | Code intelligence + localization | ⬜ |
 | 8 | Editing + git checkpoints + repo memory | ⬜ |
 | 9 | Verification ladder + sandbox | ⬜ |
@@ -30,6 +30,24 @@ Resume a session with: read `docs/PROGRESS.md`, `docs/ARCHITECTURE.md`, `docs/ed
 | 20 | UI / UX panel | ⬜ |
 | 21 | Multi-account quota pooling | ⬜ |
 | 22 | Hardening, edge-case matrix, eval, release | ⬜ |
+
+## Phase 5 — acceptance gate (all met)
+
+| Acceptance criterion / catalog | Proof | Result |
+|--------------------------------|-------|--------|
+| Shadow price subgradient: λ ← max(0, λ + η·(consumption − budget)) | `shadowPrice.test.ts` (rise over budget, decay+clamp under) | ✅ |
+| pricedCost: real $ for paid, $0 for free, + shadow-priced scarcity | `shadowPrice.test.ts` (PricedCost) | ✅ |
+| COST MODE gates candidates (free-only / free-first / best-quality) | `costPolicy.test.ts` | ✅ |
+| Spend cap never exceeded — HARD STOP at cap (COST-3) | `budgetManager.test.ts` (preflight blocks + capReached) | ✅ |
+| Warn once at 50/80/100% (COST-2) | `budgetManager.test.ts` | ✅ |
+| Pre-flight estimate + confirm for expensive task (COST-4) | `budgetManager.test.ts` | ✅ |
+| Free ceiling → add key/add paid/wait (COST-1) | `budgetManager.test.ts` (freeCeilingReport actions) | ✅ |
+| Budget state persists across reload (cap/spend/mode/warned) | `budgetManager.test.ts` (new instance same db) | ✅ |
+| Migration v3 (budget table) preserves prior rows (STATE-5) | `storage.test.ts` (v1→v3 keeps model row + seeds budget) | ✅ |
+| Paid spend folds into budget from call path | `Services` observer → `budget.record` → COST-2 surface | ✅ |
+| Host activates + commands registered | integration 5/5 | ✅ |
+| Unit suite | `npm run test:unit` | ✅ 135/135 |
+| `.vsix` packages with WASM dep | `npm run package` (563 KB, 15 files) | ✅ |
 
 ## Phase 4 — acceptance gate (all met)
 

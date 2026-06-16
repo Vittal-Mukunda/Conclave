@@ -50,6 +50,10 @@
       {
         "command": "conclave.manageKeys",
         "title": "conclave: Manage Provider Keys"
+      },
+      {
+        "command": "conclave.setBudget",
+        "title": "conclave: Cost Mode & Spend Cap"
       }
     ],
     "keybindings": [

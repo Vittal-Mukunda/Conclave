@@ -70,6 +70,25 @@ export const MIGRATIONS: Migration[] = [
       db.exec(`ALTER TABLE model ADD COLUMN region TEXT;`);
     },
   },
+  {
+    version: 3,
+    // Phase 5: single-row budget/spend state (cap, running spend, cost mode,
+    // last warned threshold) — survives reloads so spend guards persist.
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS budget (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          cap_usd REAL,
+          spent_usd REAL DEFAULT 0,
+          mode TEXT DEFAULT 'free-only',
+          warned_level INTEGER DEFAULT 0,
+          period_start INTEGER DEFAULT 0
+        );
+        INSERT OR IGNORE INTO budget (id, cap_usd, spent_usd, mode, warned_level, period_start)
+          VALUES (1, NULL, 0, 'free-only', 0, 0);
+      `);
+    },
+  },
 ];
 
 export function latestVersion(): number {

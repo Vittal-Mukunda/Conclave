@@ -53,6 +53,12 @@ export function activate(context: vscode.ExtensionContext): void {
           await provider.postProviders();
         }),
       ),
+      vscode.commands.registerCommand(
+        'conclave.setBudget',
+        guard(async () => {
+          await services?.manageBudget();
+        }),
+      ),
     );
 
     services.connectivity.start();

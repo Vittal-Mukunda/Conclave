@@ -31,6 +31,10 @@ describe('storage + migrations (STATE-5)', () => {
     );
     expect(row?.model).toBe('m1'); // preserved across the upgrade
     expect(row && 'region' in row).toBe(true); // new column added
+
+    // v3 seeds a single-row budget with safe defaults.
+    const budget = db.get<{ cap_usd: number | null; mode: string }>('SELECT cap_usd, mode FROM budget WHERE id = 1');
+    expect(budget).toMatchObject({ cap_usd: null, mode: 'free-only' });
     db.close();
   });
 

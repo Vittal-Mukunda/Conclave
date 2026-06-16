@@ -159,6 +159,36 @@ Persistent learning + accounting layer in SQLite. Degrades (never crashes) if th
 Packaging: `node-sqlite3-wasm` is a runtime dep shipped in the `.vsix` (esbuild external;
 `.vscodeignore` re-includes it). Catalog handled: PROV-7, COST-5, STATE-4/5.
 
+## Phase 5 — Shadow-price engine + budget/spend control
+
+The cost-allocation layer. Makes free (rate-limited, $0) and paid (unlimited, real $)
+candidates comparable on one scale, and enforces the **spend-cap-never-exceeded** invariant.
+All math is pure + deterministic; persistence reuses the `SqlDb` from Phase 4.
+
+- **ShadowPriceEngine** (`src/cost/ShadowPriceEngine.ts`): a Lagrange price λ per scarce
+  resource (provider/account/window quota, latency, global $). Projected subgradient ascent
+  `λ ← max(0, λ + η·(consumption − budget))` — over-budget raises the price, slack decays it
+  toward 0. A free tier's quota gets a price even though its dollar cost is 0.
+- **PricedCost** (`src/cost/PricedCost.ts`): the scalar the router minimises =
+  real $ (paid only, from `CostCalculator`) + Σ λ_j·consumption_j over the call's resources.
+- **CostPolicy** (`src/cost/CostPolicy.ts`): COST MODE candidate gate — `free-only` (default,
+  $0, paid never), `free-first` (paid as spillover under cap), `best-quality` (free+paid under
+  cap). The hard cap blocks all paid in every mode (COST-3 is never overridden).
+- **BudgetManager** (`src/cost/BudgetManager.ts`): persisted single-row `budget` (cap, running
+  spend, mode, last-warned threshold). `record` folds real paid spend in and warns once per
+  50/80/100% threshold (COST-2); `preflight` HARD-STOPs a task that would exceed the cap
+  (COST-3) and flags an expensive single task for confirm (COST-4); `freeCeilingReport` offers
+  add-key/add-paid/wait (COST-1). Each guard returns a typed `ConclaveError` with ≥1 action.
+- **migrations** (`src/storage/migrations.ts`): v3 adds the `budget` table, seeded with safe
+  defaults (uncapped, free-only); additive, preserves prior rows (STATE-5).
+- **Wiring** (`src/core/Services.ts`): builds `shadow`/`pricedCost`/`budget`/`policy`
+  (mode restored from persisted budget). The telemetry observer now also folds `rec.costUsd`
+  into the budget and surfaces a COST-2 warning notification on a crossed threshold. New
+  command `conclave.setBudget` (Services.manageBudget) sets cost mode + spend cap via dialogs.
+
+Catalog handled: COST-1/2/3/4 (COST-5 was Phase 4), STATE-5. Invariant enforced: spend cap
+never exceeded.
+
 ## Testing strategy
 
 - **Unit (vitest, Node):** pure modules only; must never import `vscode`. Config:
