@@ -3,6 +3,8 @@ import { ConclaveViewProvider } from './ConclaveViewProvider';
 import { Services } from './core/Services';
 import { ErrorService } from './errors/ErrorService';
 import { SecretRedactor } from './logging/redaction';
+import { StatusBar } from './statusbar/StatusBar';
+import { ActivityVM } from './panel/PanelViewModel';
 
 let services: Services | undefined;
 
@@ -21,6 +23,22 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(ConclaveViewProvider.viewType, provider),
     );
+
+    // Always-visible status-bar glance: cost mode + spend, flipping to live agent
+    // state during a run. Click opens the panel. Reads budget fresh on each
+    // refresh, so it picks up spend recorded mid-run on the next activity change.
+    const statusBar = new StatusBar();
+    context.subscriptions.push(statusBar);
+    const refreshStatus = (activity?: ActivityVM): void => {
+      const b = services?.budget?.state();
+      statusBar.update({
+        mode: b?.mode ?? services?.policy.mode ?? 'free-only',
+        spentUsd: b?.spentUsd ?? 0,
+        capUsd: b?.capUsd ?? null,
+        activityKind: activity?.kind ?? 'idle',
+      });
+    };
+    refreshStatus();
 
     context.subscriptions.push(
       vscode.commands.registerCommand(
@@ -61,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
         'conclave.setBudget',
         guard(async () => {
           await services?.manageBudget();
+          refreshStatus();
         }),
       ),
       vscode.commands.registerCommand(
@@ -213,7 +232,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const svc = services;
     context.subscriptions.push(
       { dispose: svc.errors.onReport((report) => provider.postError(report)) },
-      { dispose: svc.agent.onActivity((vm) => provider.postActivity(vm)) },
+      { dispose: svc.agent.onActivity((vm) => { provider.postActivity(vm); refreshStatus(vm); }) },
       { dispose: svc.connectivity.onChange((online) => provider.postConnectivity(online, svc.connectivity.queuedCount)) },
       { dispose: svc.degraded.onChange(() => provider.postDegraded(svc.degraded.list())) },
     );
