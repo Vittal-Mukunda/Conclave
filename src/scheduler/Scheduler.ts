@@ -14,6 +14,11 @@ export interface SchedulerDeps {
   rng?: () => number;
   maxAttempts?: number;
   maxQueueMs?: number;
+  /** Notified when an account's latency EWMA or availability changes, so the host
+   * can persist it (PROV-15 deprioritisation survives reloads). */
+  onAccountUpdate?: (account: Account) => void;
+  /** EWMA smoothing for observed latency. Default 0.3 (recent calls weigh more). */
+  latencyAlpha?: number;
 }
 
 interface Job {
@@ -23,6 +28,7 @@ interface Job {
   priority: number;
   attempts: number;
   enqueuedAt: number;
+  dispatchedAt: number;
   run: (account: Account) => Promise<unknown>;
   resolve: (value: unknown) => void;
   reject: (err: unknown) => void;
@@ -30,6 +36,10 @@ interface Job {
   settled: boolean;
   lastError?: unknown;
 }
+
+/** Latency at which an account's score is halved relative to a zero-latency one
+ * (PROV-15). A soft, monotonic penalty — never excludes, just deprioritises. */
+const LATENCY_REFERENCE_MS = 2_000;
 
 export type ThrottleListener = (report: ErrorReport) => void;
 
@@ -51,6 +61,7 @@ export class Scheduler {
   private readonly rng: () => number;
   private readonly maxAttempts: number;
   private readonly maxQueueMs: number;
+  private readonly latencyAlpha: number;
 
   private waiting: Job[] = [];
   private seq = 0;
@@ -65,11 +76,28 @@ export class Scheduler {
     this.rng = deps.rng ?? Math.random;
     this.maxAttempts = deps.maxAttempts ?? 6;
     this.maxQueueMs = deps.maxQueueMs ?? 120_000;
+    this.latencyAlpha = deps.latencyAlpha ?? 0.3;
   }
 
   onThrottled(listener: ThrottleListener): () => void {
     this.throttleListeners.add(listener);
     return () => this.throttleListeners.delete(listener);
+  }
+
+  /** Add an account to the live pool (a new key was added — pool immediately). */
+  addAccount(account: Account): void {
+    if (!this.accounts.some((a) => a.id === account.id)) {
+      this.accounts.push(account);
+      this.pump();
+    }
+  }
+
+  /** Remove an account from the pool (a key was cleared). In-flight jobs finish. */
+  removeAccount(id: string): void {
+    const idx = this.accounts.findIndex((a) => a.id === id);
+    if (idx >= 0) {
+      this.accounts.splice(idx, 1);
+    }
   }
 
   submit<T>(opts: SubmitOptions<T>): Promise<T> {
@@ -81,6 +109,7 @@ export class Scheduler {
         priority: opts.priority ?? 0,
         attempts: 0,
         enqueuedAt: this.clock.now(),
+        dispatchedAt: 0,
         run: opts.run as (account: Account) => Promise<unknown>,
         resolve: resolve as (value: unknown) => void,
         reject,
@@ -147,7 +176,12 @@ export class Scheduler {
   private score(account: Account, now: number): number {
     const remaining = account.limiter.remainingRequests(now);
     const r = Number.isFinite(remaining) ? remaining : 1_000_000;
-    return account.weight * r;
+    // PROV-15: deprioritise a slow account by a soft, monotonic latency factor.
+    // Unknown latency (0/undefined) => factor 1 (no penalty), so a fresh pool and
+    // single-account providers behave exactly as before.
+    const latency = account.latencyMs ?? 0;
+    const latencyFactor = LATENCY_REFERENCE_MS / (LATENCY_REFERENCE_MS + latency);
+    return account.weight * r * latencyFactor;
   }
 
   private candidates(job: Job): Account[] {
@@ -173,6 +207,7 @@ export class Scheduler {
     }
     job.inFlight = true;
     job.attempts++;
+    job.dispatchedAt = now;
     this.removeFromWaiting(job);
     this.throttleNotified = false;
 
@@ -187,6 +222,11 @@ export class Scheduler {
   private onSuccess(job: Job, account: Account, result: unknown): void {
     account.breaker.onSuccess();
     job.inFlight = false;
+    // PROV-15: fold this call's latency into the account's EWMA and surface it.
+    const latency = Math.max(0, this.clock.now() - job.dispatchedAt);
+    const prev = account.latencyMs ?? latency;
+    account.latencyMs = prev + this.latencyAlpha * (latency - prev);
+    this.deps.onAccountUpdate?.(account);
     this.settle(job, 'resolve', result);
     this.pump();
   }
@@ -210,6 +250,7 @@ export class Scheduler {
       }
       case 'account-dead':
         account.available = false;
+        this.deps.onAccountUpdate?.(account);
         break;
       case 'request-bad':
         // Don't penalise the account; just fail over to a different one.

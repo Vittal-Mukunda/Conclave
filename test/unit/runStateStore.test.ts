@@ -24,8 +24,8 @@ function rec(over: Partial<RunRecord> = {}): RunRecord {
 }
 
 describe('RunStateStore (STATE-1/2)', () => {
-  it('agent_run table is queryable at the latest schema version (v7)', () => {
-    expect(latestVersion()).toBe(7);
+  it('agent_run table is queryable at the latest schema version (v8)', () => {
+    expect(latestVersion()).toBe(8);
     const store = new RunStateStore(Storage.memory().db);
     expect(store.running(WS_A)).toEqual([]);
   });

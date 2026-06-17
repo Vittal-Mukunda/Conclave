@@ -22,7 +22,7 @@ function sampleSkill(name = 'pdf-tools'): Skill {
 
 describe('SkillStore', () => {
   it('skill table (migration v6) is queryable at the latest schema version', () => {
-    expect(latestVersion()).toBe(7);
+    expect(latestVersion()).toBe(8);
     const store = new SkillStore(Storage.memory().db);
     expect(store.all()).toEqual([]);
   });

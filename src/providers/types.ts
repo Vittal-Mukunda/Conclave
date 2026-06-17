@@ -70,4 +70,6 @@ export interface ChatOptions {
   onToken?: (delta: string) => void;
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** Which pooled account's key to use (Phase 21). Defaults to 'default'. */
+  accountId?: string;
 }

@@ -5,6 +5,14 @@
   "version": "0.0.1",
   "publisher": "conclave",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vittal-Mukunda/conclave.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Vittal-Mukunda/conclave/issues"
+  },
+  "homepage": "https://github.com/Vittal-Mukunda/conclave#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -130,6 +138,10 @@
       {
         "command": "conclave.cancelAgent",
         "title": "conclave: Cancel Running Agent"
+      },
+      {
+        "command": "conclave.manageAccounts",
+        "title": "conclave: Manage Account Pool"
       }
     ],
     "keybindings": [

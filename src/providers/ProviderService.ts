@@ -80,7 +80,7 @@ export class ProviderService {
       const res = await this.scheduler.submit<ChatResponse>({
         providerId,
         estTokens: this.reserveTokens(req),
-        run: () => this.client.chat(provider, req, { stream }),
+        run: (account) => this.client.chat(provider, req, { stream, accountId: account.accountName }),
       });
       this.record(providerId, req.model, 'chat', res, true, 'ok');
       return res;
@@ -105,7 +105,7 @@ export class ProviderService {
         providerId,
         estTokens: this.reserveTokens(req),
         priority: 1, // user is waiting on a connection test
-        run: () => this.client.chat(provider, req),
+        run: (account) => this.client.chat(provider, req, { accountId: account.accountName }),
       });
       this.record(providerId, model.id, 'probe', res, true, 'ok');
       return { ok: true, providerId, model: model.id, latencyMs: res.latencyMs };

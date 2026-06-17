@@ -15,10 +15,10 @@ import { FetchTransport } from '../providers/http';
 import { KeyManager } from '../keys/KeyManager';
 import { Scheduler } from '../scheduler/Scheduler';
 import { RealClock } from '../scheduler/clock';
-import { AccountLimiter } from '../scheduler/AccountLimiter';
-import { CircuitBreaker } from '../scheduler/CircuitBreaker';
-import { defaultLimitsFor } from '../scheduler/rateLimits';
 import { Account } from '../scheduler/types';
+import { AccountRegistry } from '../scheduler/AccountRegistry';
+import { buildPool, AccountSeed } from '../scheduler/accountPool';
+import { AccountManager } from '../keys/AccountManager';
 import { Storage } from '../storage/Storage';
 import { CapabilityRegistry } from '../capability/CapabilityRegistry';
 import { ProbeService } from '../capability/ProbeService';
@@ -83,6 +83,8 @@ export class Services implements vscode.Disposable {
   readonly banditStore?: BanditStore;
   readonly skillStore?: SkillStore;
   readonly runStore?: RunStateStore;
+  readonly accountRegistry?: AccountRegistry;
+  readonly accounts: AccountManager;
 
   private readonly channel: vscode.OutputChannel;
   private readonly capture: GlobalCaptureHandle;
@@ -125,34 +127,16 @@ export class Services implements vscode.Disposable {
     const registry = new ProviderRegistry();
     const client = new LLMClient({
       transport: new FetchTransport(),
-      keyProvider: (providerId) => this.keys.getKey(providerId),
+      // Phase 21: the key for the SPECIFIC pooled account (falls back to default).
+      keyProvider: (providerId, accountId) => this.keys.getKey(providerId, accountId ?? 'default'),
       redactor: this.redactor,
       logger: this.logger,
     });
 
-    // Rate-limit-aware scheduler: one default account per provider for now
-    // (Phase 21 pools multiple). Every provider call is funneled through it.
-    const accounts: Account[] = registry.list().map((p) => ({
-      id: `${p.id}:default`,
-      providerId: p.id,
-      limiter: new AccountLimiter(defaultLimitsFor(p)),
-      breaker: new CircuitBreaker(5, 30_000),
-      weight: 1,
-      available: true,
-      cooldownUntil: 0,
-    }));
-    this.scheduler = new Scheduler({
-      clock: new RealClock(),
-      accounts,
-      errors: this.errors,
-      logger: this.logger,
-    });
-    this.scheduler.onThrottled((report) => {
-      this.logger.warn('scheduler_throttled', { code: report.code, retryAfterMs: report.retryAfterMs });
-    });
-
-    // Persistence layer: capability/quota registry + telemetry + cost meter.
-    // Degrades (does not crash) if the storage engine cannot open (STATE-4).
+    // Persistence layer: capability/quota registry + telemetry + cost meter +
+    // the multi-account registry. Built BEFORE the scheduler so the account pool
+    // can be seeded from persisted accounts. Degrades (does not crash) if the
+    // storage engine cannot open (STATE-4).
     this.cost = new CostCalculator(registry);
     this.shadow = new ShadowPriceEngine();
     this.pricedCost = new PricedCost(this.cost, this.shadow);
@@ -166,6 +150,7 @@ export class Services implements vscode.Disposable {
       this.banditStore = new BanditStore(this.storage.db);
       this.skillStore = new SkillStore(this.storage.db);
       this.runStore = new RunStateStore(this.storage.db);
+      this.accountRegistry = new AccountRegistry(this.storage.db);
       this.logger.info('storage_ready', { version: this.storage.version });
     } catch (err) {
       this.degraded.set(Capability.Storage, 'unavailable', {
@@ -174,6 +159,35 @@ export class Services implements vscode.Disposable {
       });
       this.errors.report(err, { category: 'state', code: 'STATE-4' });
     }
+
+    // Rate-limit-aware scheduler: the multi-account POOL (Phase 21). Each provider
+    // contributes one account per registered key (or a single 'default' when none
+    // are registered — back-compat). Their quota pools and the scheduler fails
+    // over between them; a slow account is deprioritised (PROV-15). Every provider
+    // call is funneled through it.
+    const accountRegistry = this.accountRegistry;
+    const seedsFor = (providerId: string): AccountSeed[] =>
+      (accountRegistry?.list(providerId) ?? []).map((a) => ({
+        accountName: a.accountId,
+        latencyMs: a.latencyMs || undefined,
+        available: a.healthy,
+      }));
+    const accounts: Account[] = buildPool(registry.list(), seedsFor);
+    this.scheduler = new Scheduler({
+      clock: new RealClock(),
+      accounts,
+      errors: this.errors,
+      logger: this.logger,
+      // PROV-15: persist observed latency + health so deprioritisation survives reloads.
+      onAccountUpdate: (a) =>
+        accountRegistry?.update(a.providerId, a.accountName ?? 'default', {
+          healthy: a.available,
+          latencyMs: a.latencyMs,
+        }),
+    });
+    this.scheduler.onThrottled((report) => {
+      this.logger.warn('scheduler_throttled', { code: report.code, retryAfterMs: report.retryAfterMs });
+    });
 
     // Cost mode defaults to free-only; restored from persisted budget when present.
     this.policy = new CostPolicy(this.budget?.state().mode ?? 'free-only');
@@ -208,6 +222,9 @@ export class Services implements vscode.Disposable {
 
     this.providers = new ProviderService(registry, this.scheduler, client, this.keys, this.cost, observer);
     this.keyManager = new KeyManager(this.providers, this.errors);
+    // Multi-account quota pooling (Phase 21): add/remove extra keys per provider;
+    // the scheduler pools their quota and deprioritises a slow account (PROV-15).
+    this.accounts = new AccountManager(registry, this.keys, this.scheduler, this.accountRegistry);
     this.onboarding = new OnboardingHost(context, this.providers, this.keyManager, this.errors);
     // Code intelligence / localization (Phase 7). Indexed lazily on first query.
     this.codeIntel = new CodeIntelService(this.degraded, this.logger);

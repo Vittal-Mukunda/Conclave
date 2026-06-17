@@ -178,6 +178,28 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 8,
+    // Phase 21: the multi-account pool. One row per (provider, account) so the
+    // app can ENUMERATE accounts (SecretStorage can't) and pool their quota. The
+    // key itself stays in SecretStorage keyed by the same account_id; this table
+    // holds only the label + health + observed-latency EWMA (PROV-15) so a slow /
+    // dead account stays deprioritised across reloads. Not workspace-scoped —
+    // keys/accounts are global, like skills.
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS account (
+          provider_id TEXT NOT NULL,
+          account_id TEXT NOT NULL,
+          label TEXT NOT NULL,
+          healthy INTEGER DEFAULT 1,
+          ewma_latency_ms REAL DEFAULT 0,
+          added_at INTEGER DEFAULT 0,
+          PRIMARY KEY (provider_id, account_id)
+        );
+      `);
+    },
+  },
 ];
 
 export function latestVersion(): number {

@@ -139,6 +139,13 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
       ),
       vscode.commands.registerCommand(
+        'conclave.manageAccounts',
+        guard(async () => {
+          await services?.accounts.manageAccountsCommand();
+          await provider.postProviders();
+        }),
+      ),
+      vscode.commands.registerCommand(
         'conclave.estimateDifficulty',
         guard(async () => {
           await services?.router.estimateDifficultyCommand();

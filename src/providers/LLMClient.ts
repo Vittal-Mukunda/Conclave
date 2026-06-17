@@ -13,7 +13,7 @@ import { estimateMessagesTokens, estimateTokens } from './tokenEstimate';
 import { parseRetryAfterMs } from '../scheduler/backoff';
 import { ChatOptions, ChatRequest, ChatResponse, FinishReason, Provider } from './types';
 
-export type KeyProvider = (providerId: string) => Promise<string | undefined>;
+export type KeyProvider = (providerId: string, accountId?: string) => Promise<string | undefined>;
 
 export interface LLMClientDeps {
   transport?: HttpTransport;
@@ -45,7 +45,7 @@ export class LLMClient {
   }
 
   async chat(provider: Provider, req: ChatRequest, opts: ChatOptions = {}): Promise<ChatResponse> {
-    const apiKey = await this.deps.keyProvider(provider.id);
+    const apiKey = await this.deps.keyProvider(provider.id, opts.accountId);
     if (!apiKey) {
       throw missingKeyError(provider);
     }
